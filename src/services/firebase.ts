@@ -1,5 +1,5 @@
-import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -10,18 +10,24 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-let firebaseApp: FirebaseApp | null = null;
-let firebaseAuth: Auth | null = null;
+let firebaseApp: FirebaseApp;
+let firebaseAuth: Auth;
 
 export function getFirebaseAuth(): Auth {
-  if (!firebaseApp) {
+  if (!getApps().length) {
     firebaseApp = initializeApp(firebaseConfig);
+  } else {
+    firebaseApp = getApps()[0];
+  }
+  
+  if (!firebaseAuth) {
     firebaseAuth = getAuth(firebaseApp);
-    firebaseAuth.setPersistence({ type: 'LOCAL' } as any).catch(() => {
-      // Persistence might not be available in all environments
+    setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {
+      // Persistence fallback
     });
   }
-  return firebaseAuth!;
+  
+  return firebaseAuth;
 }
 
 export { firebaseConfig };
