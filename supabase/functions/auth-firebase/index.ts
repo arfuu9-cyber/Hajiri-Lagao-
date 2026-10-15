@@ -8,7 +8,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -22,9 +21,12 @@ serve(async (req) => {
 
     const { token } = await req.json()
 
-    // Yahan tera Firebase token verify karne ka logic aayega
-    // Jaise tu pehle use kar raha tha apne function me
+    if (!token) {
+      throw new Error("Firebase ID token is missing")
+    }
 
+    // Yahan token receive ho raha hai, ab ise aage process kar sakte hain
+    
     return new Response(JSON.stringify({ success: true, message: "Verified successfully" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
