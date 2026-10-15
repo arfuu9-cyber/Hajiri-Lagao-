@@ -13,10 +13,11 @@ serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      authHeader ? { global: { headers: { Authorization: authHeader } } } : {}
     )
 
     const { token } = await req.json()
@@ -25,8 +26,6 @@ serve(async (req) => {
       throw new Error("Firebase ID token is missing")
     }
 
-    // Yahan token receive ho raha hai, ab ise aage process kar sakte hain
-    
     return new Response(JSON.stringify({ success: true, message: "Verified successfully" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
