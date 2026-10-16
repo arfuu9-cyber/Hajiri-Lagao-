@@ -65,8 +65,11 @@ serve(async (req) => {
     if (sessionError) throw sessionError
 
     return new Response(JSON.stringify({
-      access_token: sessionData.session.access_token,
-      refresh_token: sessionData.session.refresh_token,
+      success: true,
+      session: {
+        access_token: sessionData.session.access_token,
+        refresh_token: sessionData.session.refresh_token,
+      },
       user: sessionData.user
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -74,7 +77,7 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ success: false, error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })
