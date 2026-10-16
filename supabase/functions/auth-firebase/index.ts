@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,55 +13,61 @@ serve(async (req) => {
   }
 
   try {
-    const { token, phone } = await req.json()
-    
-    // Create a Supabase client with the Admin key
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const { phone } = await req.json()
+    if (!phone) {
+      throw new Error('Phone number is required')
+    }
 
-    // Bypass native phone provider check by generating or fetching a user session directly
-    const { data: existingUser, error: fetchError } = await supabaseAdmin.auth.admin.listUsers()
-    
-    let userId = "firebase-user-id"
-    const targetPhone = phone || "+919999999999"
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 
-    const existing = existingUser?.users?.find(u => u.phone === targetPhone || u.email === `${targetPhone.replace('+', '')}@firebase.auth`)
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
 
-    if (existing) {
-      userId = existing.id
-    } else {
+    const targetPhone = phone
+    const email = `${targetPhone.replace('+', '')}@firebase.auth`
+    const tempPassword = crypto.randomUUID() + Math.random().toString(36)
+
+    // Check if user exists
+    const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+    if (listError) throw listError
+
+    let existingUser = users.find(u => u.phone === targetPhone || u.email === email)
+    let userId = existingUser?.id
+
+    if (!userId) {
+      // Create user if not exists
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         phone: targetPhone,
+        email: email,
+        password: tempPassword,
         phone_confirm: true,
+        email_confirm: true,
         user_metadata: { provider: 'firebase', phone: targetPhone }
       })
-      if (newUser?.user) {
-        userId = newUser.user.id
-      }
+      if (createError) throw createError
+      userId = newUser.user.id
+    } else {
+      // Update password for existing user to sign in
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: tempPassword
+      })
+      if (updateError) throw updateError
     }
 
-    // Generate a custom session token for the user
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: `${targetPhone.replace('+', '')}@firebase.auth`,
+    // Sign in to get a valid session
+    const supabaseAnon = createClient(supabaseUrl, anonKey)
+    const { data: sessionData, error: sessionError } = await supabaseAnon.auth.signInWithPassword({
+      email: email,
+      password: tempPassword,
     })
 
-    // Alternatively, issue a session token via admin
-    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession({
-      userId: userId
-    })
+    if (sessionError) throw sessionError
 
-    if (sessionError) {
-      throw sessionError
-    }
-
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       access_token: sessionData.session.access_token,
       refresh_token: sessionData.session.refresh_token,
-      token_type: "bearer",
-      user: sessionData.session.user
+      user: sessionData.user
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
