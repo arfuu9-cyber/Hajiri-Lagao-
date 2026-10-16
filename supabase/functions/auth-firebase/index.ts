@@ -12,16 +12,20 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => ({}))
+    const { token } = await req.json().catch(() => ({}))
     
-    return new Response(JSON.stringify({ success: true, message: "Received successfully", data: body }), {
+    return new Response(JSON.stringify({ 
+      access_token: token || "dummy-token", 
+      token_type: "bearer",
+      user: { id: "firebase-user" }
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
+      status: 400,
     })
   }
 })
