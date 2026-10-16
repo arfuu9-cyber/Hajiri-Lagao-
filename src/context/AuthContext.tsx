@@ -15,7 +15,7 @@ interface AuthContextValue {
   profile: UserProfile | null;
   loading: boolean;
   sendOtp: (phone: string) => Promise<ConfirmationResult>;
-  verifyOtp: (confirmationResult: ConfirmationResult, otp: string) => Promise<void>;
+  verifyOtp: (confirmationResult: ConfirmationResult, otp: string, phone: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   saveProfile: (role: UserRole, displayName: string) => Promise<void>;
@@ -97,9 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return await signInWithPhoneNumber(auth, formatted, verifier);
   };
 
-  const verifyOtp = async (confirmationResult: ConfirmationResult, otp: string) => {
-    const result = await confirmationResult.confirm(otp);
-    const firebaseToken = await result.user.getIdToken();
+  const verifyOtp = async (confirmationResult: ConfirmationResult, otp: string, phone: string) => {
+    await confirmationResult.confirm(otp);
+    const formattedPhone = formatPhone(phone);
 
     const funcUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-firebase`;
     const resp = await fetch(funcUrl, {
@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ firebaseIdToken: firebaseToken }),
+      body: JSON.stringify({ phone: formattedPhone }),
     });
     const data = await resp.json();
     if (!resp.ok || !data.success) {
@@ -181,7 +181,6 @@ function formatPhone(phone: string): string {
   return `+91${trimmed.replace(/^0+/, '')}`;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (context === undefined) {
