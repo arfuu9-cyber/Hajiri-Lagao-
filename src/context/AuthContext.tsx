@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!session?.user) throw new Error('Not authenticated');
     const { data, error } = await supabase
       .from('user_profiles')
-      .insert({
+      .upsert({
         id: session.user.id,
         phone: session.user.phone ?? null,
         display_name: displayName.trim() || null,
