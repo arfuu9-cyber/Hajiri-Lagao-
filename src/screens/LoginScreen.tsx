@@ -77,7 +77,7 @@ export function LoginScreen() {
 
     setLoading(true);
     try {
-      await verifyOtp(confirmationRef.current, otp);
+      await verifyOtp(confirmationRef.current, otp, phone);
     } catch (err) {
       const message =
         err instanceof Error
