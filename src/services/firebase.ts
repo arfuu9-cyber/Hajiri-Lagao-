@@ -5,7 +5,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDlUieTHySyPnQLr9e0RKoZOugSkjSTjzM",
   authDomain: "hajiri-lagao.firebaseapp.com",
   projectId: "hajiri-lagao",
-  storageBucket: "hajiri-lagao.appspot.com",
+  storageBucket: "hajiri-lagao.firebasestorage.app",
   messagingSenderId: "671231461511",
   appId: "1:671231461511:web:a0116954c50d77d3d01022",
   measurementId: "G-3HF2YJSFP8"
