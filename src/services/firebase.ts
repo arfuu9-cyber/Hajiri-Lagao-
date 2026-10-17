@@ -2,12 +2,12 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSy...", // Yahan apni Firebase Console wali exact API key daal de
+  authDomain: "hajiri-lagao.firebaseapp.com",
+  projectId: "hajiri-lagao",
+  storageBucket: "hajiri-lagao.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID",
 };
 
 let firebaseApp: FirebaseApp;
@@ -19,14 +19,14 @@ export function getFirebaseAuth(): Auth {
   } else {
     firebaseApp = getApps()[0];
   }
-  
+
   if (!firebaseAuth) {
     firebaseAuth = getAuth(firebaseApp);
     setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {
       // Persistence fallback
     });
   }
-  
+
   return firebaseAuth;
 }
 
