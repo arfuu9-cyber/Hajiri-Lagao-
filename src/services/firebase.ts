@@ -2,12 +2,13 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSy...", // Yahan apni Firebase Console wali exact API key daal de
+  apiKey: "AIzaSyDlUieTHySyPnQLr9e0RKoZOugSkjSTjzM",
   authDomain: "hajiri-lagao.firebaseapp.com",
   projectId: "hajiri-lagao",
   storageBucket: "hajiri-lagao.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  messagingSenderId: "671231461511",
+  appId: "1:671231461511:web:a0116954c50d77d3d01022",
+  measurementId: "G-3HF2YJSFP8"
 };
 
 let firebaseApp: FirebaseApp;
