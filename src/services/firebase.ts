@@ -1,4 +1,3 @@
-```typescript
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth, browserLocalPersistence, setPersistence } from 'firebase/auth';
 
@@ -33,4 +32,3 @@ export function getFirebaseAuth(): Auth {
 }
 
 export { firebaseConfig };
-```
