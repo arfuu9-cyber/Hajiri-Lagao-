@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hajiri Lagao</string>
+    <string name="title_activity_main">Hajiri Lagao</string>
+    <string name="package_name">com.workers.attendance</string>
+    <string name="custom_url_scheme">com.workers.attendance</string>
+</resources>

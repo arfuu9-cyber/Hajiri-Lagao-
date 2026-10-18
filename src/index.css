@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f5f6f4;
+  color: #111827;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.construction-panel {
+  background-image:
+    linear-gradient(135deg, rgba(6, 23, 54, 0.98), rgba(8, 32, 78, 0.94)),
+    repeating-linear-gradient(135deg, transparent 0, transparent 12px, rgba(249, 156, 53, 0.08) 12px, rgba(249, 156, 53, 0.08) 24px);
+}
+
+/* === Splash intro animation === */
+@keyframes splashLogoIn {
+  0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+  50% { transform: scale(1.15) rotate(5deg); opacity: 1; }
+  70% { transform: scale(0.95) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes splashFadeUp {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes splashRing {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes splashBar {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+.animate-splash-logo { animation: splashLogoIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.animate-splash-title { animation: splashFadeUp 0.6s ease-out 0.4s forwards; opacity: 0; }
+.animate-splash-subtitle { animation: splashFadeUp 0.6s ease-out 0.6s forwards; opacity: 0; }
+.animate-splash-ring { animation: splashRing 1.5s ease-out infinite; }
+.animate-splash-bar { animation: splashBar 1.8s ease-in forwards; }
+.animate-fade-out { animation: fadeOut 0.4s ease-out forwards; }
+
+/* === Card slide-in animations === */
+@keyframes slideUp {
+  0% { transform: translateY(16px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  0% { transform: translateX(-16px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
+.animate-slide-in-left { animation: slideInLeft 0.35s ease-out forwards; }
+.animate-pop-in { animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+/* === Nav bar active bounce === */
+@keyframes navBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.animate-nav-bounce { animation: navBounce 0.4s ease-out; }
+
+/* === Shimmer for loading === */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* === Pulse glow for important buttons === */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(247, 127, 12, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(247, 127, 12, 0); }
+}
+.animate-pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
