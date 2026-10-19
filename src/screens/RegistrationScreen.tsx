@@ -1,4 +1,4 @@
-yimport { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ArrowLeft, User, Phone, CreditCard, Camera, Image as ImageIcon, HardHat, Users, ShieldCheck } from 'lucide-react';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useLang } from '@/context/LangContext';
