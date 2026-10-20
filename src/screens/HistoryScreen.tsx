@@ -65,8 +65,8 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
   }, [records, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+    <div className="min-h-screen bg-concrete-50">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-900">{t('attendanceHistory')}</h1>
@@ -116,7 +116,7 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
                     ({entries.length} {entries.length === 1 ? t('worker') : t('workersPlural')})
                   </span>
                 </h2>
-                <div className="rounded-2xl bg-white border border-gray-200 px-5 shadow-sm">
+                <div className="rounded-3xl bg-white ring-1 ring-navy-100 px-5 shadow-sm">
                   {entries.map((record) => (
                     <AttendanceRow
                       key={record.id}

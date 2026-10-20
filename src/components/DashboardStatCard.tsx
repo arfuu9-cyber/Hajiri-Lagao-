@@ -25,7 +25,7 @@ export function DashboardStatCard({
       {loading ? (
         <div className="h-8 w-12 animate-pulse rounded bg-gray-200" />
       ) : (
-        <span className="text-3xl font-bold text-gray-900">{value}</span>
+        <span className="text-3xl font-extrabold text-gray-900">{value}</span>
       )}
       <span className="mt-1 text-sm text-gray-500 text-center">{label}</span>
     </>
@@ -36,7 +36,7 @@ export function DashboardStatCard({
       <button
         onClick={onClick}
         disabled={loading}
-        className="group flex flex-col items-center justify-center rounded-2xl bg-white border border-gray-200 p-6 shadow-sm hover:shadow-md hover:border-navy-300 active:scale-95 transition-all duration-200 w-full disabled:opacity-60"
+        className="group flex flex-col items-center justify-center rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm hover:shadow-md hover:border-navy-300 active:scale-95 transition-all duration-200 w-full disabled:opacity-60"
       >
         {content}
       </button>
@@ -44,7 +44,7 @@ export function DashboardStatCard({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-gray-200 p-6 shadow-sm">
+    <div className="flex flex-col items-center justify-center rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm">
       {content}
     </div>
   );

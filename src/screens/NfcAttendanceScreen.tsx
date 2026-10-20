@@ -16,6 +16,7 @@ import { ErrorView } from '@/components/ErrorView';
 import { AttendanceSelector } from '@/components/AttendanceSelector';
 import { DutyBadge } from '@/components/AttendanceSelector';
 import { fetchWorkers, findWorkerByNfcUid } from '@/services/workerService';
+import { useTeamId } from '@/context/AuthContext';
 import { createAttendance, AttendanceDuplicateError } from '@/services/attendanceService';
 import {
   getNfcAvailability,
@@ -59,18 +60,19 @@ export function NfcAttendanceScreen({ onBack }: NfcAttendanceScreenProps) {
   const nfcAvailability = getNfcAvailability();
   const isScanningRef = useRef(false);
 
+  const teamId = useTeamId();
   const loadWorkers = useCallback(async () => {
     setLoadingWorkers(true);
     setLoadError(false);
     try {
-      const data = await fetchWorkers();
+      const data = await fetchWorkers(teamId);
       setWorkers(data);
     } catch {
       setLoadError(true);
     } finally {
       setLoadingWorkers(false);
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
     loadWorkers();
@@ -248,7 +250,7 @@ export function NfcAttendanceScreen({ onBack }: NfcAttendanceScreenProps) {
         )}
 
         {/* Scanner area */}
-        <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-gray-200 p-8 shadow-sm">
+        <div className="flex flex-col items-center justify-center rounded-3xl bg-white ring-1 ring-navy-100 p-8 shadow-sm">
           <div className="relative mb-6">
             {scanStatus === 'scanning' && (
               <div className="absolute inset-0 rounded-full bg-navy-200 animate-ping opacity-75" />
@@ -381,7 +383,7 @@ export function NfcAttendanceScreen({ onBack }: NfcAttendanceScreenProps) {
               </button>
 
               {showMockPicker && (
-                <div className="rounded-xl bg-white border border-gray-200 p-4 space-y-3">
+                <div className="rounded-2xl bg-white ring-1 ring-navy-100 p-4 space-y-3">
                   <p className="text-sm text-gray-600">
                     {t('selectWorkerSimulate')}
                   </p>
@@ -443,7 +445,7 @@ function ScreenWrapper({
 }) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}

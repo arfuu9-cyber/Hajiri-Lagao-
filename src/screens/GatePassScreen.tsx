@@ -20,7 +20,7 @@ export function GatePassScreen({ onBack, mode }: GatePassScreenProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-navy-900 px-5 py-4 sticky top-0 z-10">
+      <header className="bg-gradient-to-r from-navy-700 to-navy-900 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -49,7 +49,7 @@ export function GatePassScreen({ onBack, mode }: GatePassScreenProps) {
 /* ===================== THEKEDAR VIEW ===================== */
 
 function ThekedarView({ t }: { t: (key: string) => string }) {
-  const { profile } = useAuth();
+  const { profile, myWorker } = useAuth();
   const [thekedarId, setThekedarId] = useState<string | null>(null);
   const [thekedarName, setThekedarName] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -65,14 +65,21 @@ function ThekedarView({ t }: { t: (key: string) => string }) {
   const initThekedar = async () => {
     setLoading(true);
     try {
-      const workers = await fetchWorkers();
-      const firstWorker = workers[0];
-      if (firstWorker) {
-        setThekedarId(firstWorker.id);
-        setThekedarName(firstWorker.name);
-        setAllWorkers(workers);
-        // Select all by default
-        setSelectedIds(new Set(workers.map((w) => w.id)));
+      if (myWorker) {
+        const team = await fetchWorkers(myWorker.id);
+        setThekedarId(myWorker.id);
+        setThekedarName(myWorker.name);
+        setAllWorkers(team);
+        setSelectedIds(new Set(team.map((w) => w.id)));
+      } else {
+        const workers = await fetchWorkers();
+        const firstWorker = workers[0];
+        if (firstWorker) {
+          setThekedarId(firstWorker.id);
+          setThekedarName(firstWorker.name);
+          setAllWorkers(workers);
+          setSelectedIds(new Set(workers.map((w) => w.id)));
+        }
       }
     } catch {
       // no workers yet
@@ -149,7 +156,7 @@ function ThekedarView({ t }: { t: (key: string) => string }) {
   return (
     <div className="space-y-6">
       {/* QR Code card */}
-      <div className="rounded-2xl bg-white border border-gray-200 p-6 shadow-sm text-center">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 p-6 shadow-sm text-center">
         <p className="text-sm font-medium text-gray-500 mb-1">{t('yourThekedarId')}</p>
         <p className="text-lg font-bold text-navy-900 mb-4">{thekedarName}</p>
 
@@ -163,7 +170,7 @@ function ThekedarView({ t }: { t: (key: string) => string }) {
       </div>
 
       {/* Worker selection */}
-      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-semibold text-gray-900">
             {t('selectWorkers')} ({selectedIds.size}/{allWorkers.length})
@@ -368,7 +375,7 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
         </p>
 
         {/* Summary of marked workers */}
-        <div className="w-full rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden mb-6 text-left">
+        <div className="w-full rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden mb-6 text-left">
           <div className="px-5 py-3 border-b border-gray-100">
             <h3 className="font-semibold text-gray-900">{t('entryLog')}</h3>
           </div>
@@ -396,7 +403,7 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
     return (
       <div className="space-y-5">
         {/* Thekedar info */}
-        <div className="rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
+        <div className="rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-navy-100">
               <Users className="h-6 w-6 text-navy-600" />
@@ -414,7 +421,7 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
         </div>
 
         {/* Detailed worker list */}
-        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+        <div className="rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100">
             <h3 className="font-semibold text-gray-900">{t('associatedWorkersList')} ({workers.length})</h3>
           </div>

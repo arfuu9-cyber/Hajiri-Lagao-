@@ -24,11 +24,10 @@ export async function uploadWorkerPhoto(file: Blob, workerName: string): Promise
 /**
  * Fetch all workers, sorted newest first.
  */
-export async function fetchWorkers(): Promise<Worker[]> {
-  const { data, error } = await supabase
-    .from('workers')
-    .select('*')
-    .order('created_at', { ascending: false });
+export async function fetchWorkers(thekedarId?: string): Promise<Worker[]> {
+  let query = supabase.from('workers').select('*');
+  if (thekedarId) query = query.eq('thekedar_id', thekedarId);
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
   return data ?? [];
@@ -66,6 +65,8 @@ export async function createWorker(input: WorkerInput): Promise<Worker> {
       daily_wage: input.daily_wage,
       age: input.age ?? null,
       profile_photo_url: input.profile_photo_url ?? null,
+      user_id: input.user_id ?? null,
+      thekedar_id: input.thekedar_id ?? null,
     })
     .select()
     .single();
@@ -158,4 +159,15 @@ export async function countNewWorkersToday(): Promise<number> {
  */
 export function getTodayDate(): string {
   return getKolkataDateString();
+}
+
+/**
+ * A mazdoor registering in the app takes over the record his thekedar already
+ * created for the same phone number (so thekedar and mazdoor stay connected).
+ */
+export async function claimWorkerByCode(code: string): Promise<Worker | null> {
+  const { data, error } = await supabase.rpc('claim_worker_by_code', { p_code: code.trim() });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row && row.id ? (row as Worker) : null;
 }

@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/services/supabase';
-import type { UserProfile, UserRole } from '@/types/database';
+import type { UserProfile, UserRole, Worker } from '@/types/database';
 
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
+  myWorker: Worker | null;
+  reloadMyWorker: () => Promise<void>;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -18,7 +20,19 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [myWorker, setMyWorker] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const loadMyWorker = async (userId: string) => {
+    const { data } = await supabase
+      .from('workers')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setMyWorker((data as Worker) ?? null);
+  };
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -32,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setProfile(null);
     }
+    await loadMyWorker(userId);
   };
 
   useEffect(() => {
@@ -60,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })();
       } else {
         setProfile(null);
+        setMyWorker(null);
       }
       setLoading(false);
     });
@@ -96,9 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(data as UserProfile);
   };
 
+  const reloadMyWorker = async () => {
+    if (session?.user) await loadMyWorker(session.user.id);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setMyWorker(null);
   };
 
   return (
@@ -107,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user: session?.user ?? null,
         profile,
+        myWorker,
+        reloadMyWorker,
         loading,
         signInWithGoogle,
         signOut,
@@ -125,4 +148,11 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+/** A thekedar sees only his own team; everyone else gets undefined (no filter). */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useTeamId(): string | undefined {
+  const { profile, myWorker } = useAuth();
+  return profile?.role === 'thekedar' ? myWorker?.id : undefined;
 }

@@ -98,7 +98,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+        <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
           <button onClick={onBack} className="flex items-center gap-3"><ArrowLeft className="h-5 w-5 text-gray-600" /></button>
         </header>
         <LoadingView message={t('loading')} />
@@ -109,7 +109,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
   if (error || !detail) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+        <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
           <button onClick={onBack} className="flex items-center gap-3"><ArrowLeft className="h-5 w-5 text-gray-600" /></button>
         </header>
         <ErrorView message={t('couldNotLoad')} onRetry={loadDetail} />
@@ -119,7 +119,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="flex items-center justify-center h-10 w-10 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">
             <ArrowLeft className="h-5 w-5" />
@@ -130,7 +130,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
 
       <main className="mx-auto max-w-2xl space-y-5 px-5 py-6">
         {/* Profile card */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl ring-1 ring-navy-100 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-4">
             {detail.worker.profile_photo_url ? (
               <img
@@ -169,7 +169,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
         </section>
 
         {/* Salary Summary */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl ring-1 ring-navy-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-900">{t('salarySummary')}</h3>
             <button onClick={handlePrintSlip} className="inline-flex items-center gap-1.5 rounded-lg bg-saffron-50 px-3 py-2 text-sm font-semibold text-saffron-700 hover:bg-saffron-100">
@@ -193,7 +193,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
         </section>
 
         {/* Attendance Calendar */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl ring-1 ring-navy-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-900">{t('attendanceCalendar')}</h3>
             <div className="flex items-center gap-2">
@@ -243,7 +243,7 @@ export function WorkerDetailScreen({ workerId, onBack }: WorkerDetailScreenProps
         </section>
 
         {/* Advance History */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-3xl ring-1 ring-navy-100 bg-white p-5 shadow-sm">
           <h3 className="font-bold text-gray-900 mb-4">{t('advanceHistory')}</h3>
           {detail.advances.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-6">{t('noAdvancesYet')}</p>

@@ -3,12 +3,15 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["'Noto Sans'", 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
       colors: {
         concrete: {
-          50: '#f5f6f4',
-          100: '#e9ebe7',
-          200: '#d9ddd7',
-          300: '#c4cac2',
+          50: '#f2f6ff',
+          100: '#e6edfb',
+          200: '#d3def5',
+          300: '#bccbea',
         },
         navy: {
           50: '#eef4ff',
@@ -16,11 +19,11 @@ export default {
           200: '#bcd2ff',
           300: '#8eb4ff',
           400: '#5a8bf5',
-          500: '#3b66e8',
-          600: '#0F3D8C',
-          700: '#0A2D6B',
-          800: '#08204E',
-          900: '#061736',
+          500: '#2f6bff',
+          600: '#1f4fd8',
+          700: '#1a3fb0',
+          800: '#132f86',
+          900: '#0b2160',
           950: '#040E24',
         },
         saffron: {

@@ -15,7 +15,7 @@ import {
   cancelNfcScan,
   NfcScanCancelledError,
 } from '@/services/nfcService';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, useTeamId } from '@/context/AuthContext';
 import type { Worker } from '@/types/database';
 
 interface WorkersScreenProps {
@@ -58,18 +58,19 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
 
   const nfcAvailability = getNfcAvailability();
 
+  const teamId = useTeamId();
   const loadWorkers = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
-      const data = await fetchWorkers();
+      const data = await fetchWorkers(teamId);
       setWorkers(data);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
     if (isActive) {
@@ -279,8 +280,8 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+    <div className="min-h-screen bg-concrete-50">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-900">{t('workers')}</h1>
@@ -319,21 +320,14 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
         ) : (
           <div className="space-y-4">
             {filteredWorkers.map((worker) => (
-              <div key={worker.id} className="relative">
-                <WorkerCard
-                  worker={worker}
-                  onAssignNfc={handleAssignNfc}
-                  onRemoveNfc={handleRemoveNfc}
-                  onGiveAdvance={handleGiveAdvance}
-                />
-                <button
-                  onClick={() => onViewDetail(worker.id)}
-                  className="absolute top-5 right-5 flex items-center gap-1 text-sm font-medium text-navy-600 hover:text-navy-700"
-                >
-                  {t('viewDetails')}
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+              <WorkerCard
+                key={worker.id}
+                worker={worker}
+                onAssignNfc={handleAssignNfc}
+                onRemoveNfc={handleRemoveNfc}
+                onGiveAdvance={handleGiveAdvance}
+                onView={(w) => onViewDetail(w.id)}
+              />
             ))}
           </div>
         )}

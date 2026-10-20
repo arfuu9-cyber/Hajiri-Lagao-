@@ -9,9 +9,11 @@ export interface PayrollRange {
 
 const OVERTIME_RATE_PER_HOUR = 50;
 
-export async function fetchPayroll(range: PayrollRange): Promise<PayrollRow[]> {
+export async function fetchPayroll(range: PayrollRange, teamId?: string): Promise<PayrollRow[]> {
+  let workersQuery = supabase.from('workers').select('id, name, role, daily_wage, phone').eq('active', true);
+  if (teamId) workersQuery = workersQuery.eq('thekedar_id', teamId);
   const [{ data: workers, error: workerError }, { data: attendance, error: attendanceError }, { data: advances, error: advanceError }] = await Promise.all([
-    supabase.from('workers').select('id, name, role, daily_wage').eq('active', true).order('name'),
+    workersQuery.order('name'),
     supabase.from('attendance').select('worker_id, date, status, half_day, duty_multiplier, overtime_hours').gte('date', range.start).lte('date', range.end),
     supabase.from('advances').select('worker_id, amount, date, note').eq('status', 'verified').gte('date', range.start).lte('date', range.end),
   ]);
@@ -34,7 +36,7 @@ export async function fetchPayroll(range: PayrollRange): Promise<PayrollRow[]> {
     advancesByWorker.set(advance.worker_id, (advancesByWorker.get(advance.worker_id) ?? 0) + Number(advance.amount));
   });
 
-  return ((workers ?? []) as Pick<Worker, 'id' | 'name' | 'role' | 'daily_wage'>[]).map((worker) => {
+  return ((workers ?? []) as Pick<Worker, 'id' | 'name' | 'role' | 'daily_wage' | 'phone'>[]).map((worker) => {
     const attendanceData = attendanceByWorker.get(worker.id) ?? { days: 0, otHours: 0 };
     const totalDays = attendanceData.days;
     const totalWage = totalDays * Number(worker.daily_wage);
@@ -68,7 +70,7 @@ export async function createAdvance(input: {
       given_by: input.givenBy ?? null,
       status: 'pending',
     })
-    .select()
+    .select('id, worker_id, amount, status, date, note, given_by, verified_at, created_at')
     .single();
 
   if (error) throw error;
@@ -177,7 +179,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const today = getKolkataDateString();
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekStart = weekAgo.toISOString().slice(0, 10);
+  const weekStart = period === 'month' ? `${today.slice(0, 8)}01` : weekAgo.toISOString().slice(0, 10);
 
   const [{ data: activeWorkersList }, { count: presentCount }, { count: activeCount }, { count: newWorkersCount }, { data: weekAttendance }, { data: weekAdvances }, { data: workers }] = await Promise.all([
     supabase.from('workers').select('id').eq('active', true),
@@ -229,16 +231,25 @@ export interface LabourDashboardData {
   myEarnings: number;
   myAdvances: number;
   myDailyWage: number;
+  recent: LabourRecentItem[];
 }
 
-export async function fetchLabourDashboardData(workerName: string): Promise<LabourDashboardData | null> {
-  const { data: worker } = await supabase
-    .from('workers')
-    .select('id, daily_wage')
-    .ilike('name', workerName.trim())
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+export interface LabourRecentItem {
+  kind: 'attendance' | 'advance' | 'payment';
+  date: string;
+  amount: number;
+  status?: string;
+}
+
+export async function fetchLabourDashboardData(who: { id?: string | null; name?: string | null }, period: 'week' | 'month' = 'week'): Promise<LabourDashboardData | null> {
+  const base = supabase.from('workers').select('id, daily_wage');
+  const { data: worker } = who.id
+    ? await base.eq('id', who.id).maybeSingle()
+    : await base
+        .ilike('name', (who.name ?? '').trim())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
   if (!worker) return null;
 
@@ -272,11 +283,41 @@ export async function fetchLabourDashboardData(workerName: string): Promise<Labo
     myAdvances += Number(a.amount);
   });
 
+  const [{ data: recentAtt }, { data: recentAdv }, { data: recentPay }] = await Promise.all([
+    supabase.from('attendance').select('date, half_day, duty_multiplier')
+      .eq('worker_id', worker.id).order('date', { ascending: false }).limit(5),
+    supabase.from('advances').select('amount, status, date')
+      .eq('worker_id', worker.id).order('date', { ascending: false }).limit(5),
+    supabase.from('payments').select('amount, paid_on')
+      .eq('worker_id', worker.id).order('paid_on', { ascending: false }).limit(3),
+  ]);
+  const recent: LabourRecentItem[] = [
+    ...(recentAtt ?? []).map((r: any) => ({
+      kind: 'attendance' as const,
+      date: String(r.date),
+      amount: Number(r.duty_multiplier ?? (r.half_day ? 0.5 : 1)),
+    })),
+    ...(recentAdv ?? []).map((a: any) => ({
+      kind: 'advance' as const,
+      date: String(a.date),
+      amount: Number(a.amount),
+      status: String(a.status),
+    })),
+    ...(recentPay ?? []).map((p: any) => ({
+      kind: 'payment' as const,
+      date: String(p.paid_on),
+      amount: Number(p.amount),
+    })),
+  ]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
+
   return {
     myDaysThisWeek,
     myEarnings: myDaysThisWeek * dailyWage,
     myAdvances,
     myDailyWage: dailyWage,
+    recent,
   };
 }
 
@@ -459,4 +500,30 @@ export function generateWeeklyReportHTML(rows: PayrollRow[], range: PayrollRange
   <div class="footer">Generated on ${new Date().toLocaleDateString('en-IN')}</div>
 </div>
 </body></html>`;
+}
+
+/** Bhugtaan already settled for exactly this period, per worker. */
+export async function fetchPayments(range: PayrollRange): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('worker_id, amount')
+    .eq('period_start', range.start)
+    .eq('period_end', range.end);
+  if (error) return {};
+  const map: Record<string, number> = {};
+  (data ?? []).forEach((p: any) => {
+    map[p.worker_id] = (map[p.worker_id] ?? 0) + Number(p.amount);
+  });
+  return map;
+}
+
+export async function recordPayment(input: { workerId: string; amount: number; range: PayrollRange; note?: string }): Promise<void> {
+  const { error } = await supabase.from('payments').insert({
+    worker_id: input.workerId,
+    amount: input.amount,
+    period_start: input.range.start,
+    period_end: input.range.end,
+    note: input.note ?? null,
+  });
+  if (error) throw error;
 }

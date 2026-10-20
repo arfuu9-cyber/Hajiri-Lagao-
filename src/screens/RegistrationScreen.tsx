@@ -5,24 +5,27 @@ import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { validateName, validatePhone } from '@/utils/validation';
 import { supabase } from '@/services/supabase';
-import { createWorker } from '@/services/workerService';
-import type { UserRole } from '@/types/database';
+import { createWorker, claimWorkerByCode } from '@/services/workerService';
+import type { UserRole, Worker } from '@/types/database';
 
 interface RegistrationScreenProps {
   onBack: () => void;
   onSaved: () => void;
+  /** true when the logged-in user already has a profile and is registering someone else */
+  existingProfile?: boolean;
 }
 
 const ROLES: { key: UserRole; icon: typeof HardHat; color: string; bg: string }[] = [
   { key: 'thekedar', icon: HardHat, color: 'text-saffron-600', bg: 'bg-saffron-50' },
   { key: 'labour', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-  { key: 'gatekeeper', icon: ShieldCheck, color: 'text-green-600', bg: 'bg-green-50' },
 ];
 
-export function RegistrationScreen({ onBack, onSaved }: RegistrationScreenProps) {
+export function RegistrationScreen({ onBack, onSaved, existingProfile = false }: RegistrationScreenProps) {
   const { t } = useLang();
-  const { saveProfile } = useAuth();
-  const [role, setRole] = useState<UserRole>('labour');
+  const { saveProfile, user, profile, myWorker, reloadMyWorker } = useAuth();
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [aadhaar, setAadhaar] = useState('');
@@ -87,18 +90,37 @@ export function RegistrationScreen({ onBack, onSaved }: RegistrationScreenProps)
     if (aadhaarDigits.length !== 12) newErrors.aadhaar = t('aadhaarError');
 
     setFieldErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    if (!role) {
+      setRoleError(t('pickRoleFirst'));
+    }
+    if (!role || Object.keys(newErrors).length > 0) {
+      if (!role) window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     setLoading(true);
     try {
-      await saveProfile(role, name);
+      if (!existingProfile) {
+        await saveProfile(role, name);
+      }
 
-      const worker = await createWorker({
-        name: name.trim(),
-        phone: phone.trim(),
-        role: role === 'thekedar' ? 'Thekedar' : role === 'gatekeeper' ? 'Gatekeeper' : 'Labour',
-        daily_wage: 0,
-      });
+      const roleName = role === 'thekedar' ? 'Thekedar' : role === 'gatekeeper' ? 'Gatekeeper' : 'Labour';
+      let worker: Worker | null = null;
+      if (!existingProfile && role === 'labour' && inviteCode.trim()) {
+        worker = await claimWorkerByCode(inviteCode);
+        if (!worker) throw new Error(t('inviteInvalid'));
+      }
+      if (!worker) {
+        worker = await createWorker({
+          name: name.trim(),
+          phone: phone.trim(),
+          role: roleName,
+          daily_wage: 0,
+          user_id: existingProfile ? null : user?.id ?? null,
+          thekedar_id:
+            existingProfile && profile?.role === 'thekedar' && role === 'labour' ? myWorker?.id ?? null : null,
+        });
+      }
 
       let photoUrl: string | null = null;
 
@@ -126,6 +148,7 @@ export function RegistrationScreen({ onBack, onSaved }: RegistrationScreenProps)
         })
         .eq('id', worker.id);
 
+      await reloadMyWorker();
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('couldNotSave'));
@@ -136,7 +159,7 @@ export function RegistrationScreen({ onBack, onSaved }: RegistrationScreenProps)
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={() => { closeCamera(); onBack(); }}
@@ -151,29 +174,63 @@ export function RegistrationScreen({ onBack, onSaved }: RegistrationScreenProps)
       <form onSubmit={handleSubmit} className="px-5 py-6 max-w-2xl mx-auto space-y-5">
         {/* Role Selection */}
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">{t('selectYourRole')}</label>
-          <div className="grid grid-cols-3 gap-3">
+          <label className="block text-sm font-semibold text-gray-700 mb-1">
+            {existingProfile ? t('selectPersonRole') : t('selectYourRole')}
+          </label>
+          {!existingProfile && (
+            <p className="text-xs text-gray-500 mb-3">{t('roleIntro')}</p>
+          )}
+          <div className="space-y-3">
             {ROLES.map(({ key, icon: Icon, color, bg }) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setRole(key)}
-                className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-4 transition-all ${
+                onClick={() => {
+                  setRole(key);
+                  setRoleError(null);
+                }}
+                className={`flex w-full items-start gap-4 rounded-2xl border-2 p-4 text-left transition-all ${
                   role === key
                     ? 'border-navy-600 bg-navy-50 shadow-sm'
                     : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
               >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${bg}`}>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${bg}`}>
                   <Icon className={`h-6 w-6 ${color}`} />
                 </div>
-                <span className={`text-sm font-semibold ${role === key ? 'text-navy-900' : 'text-gray-600'}`}>
-                  {t(`role_${key}`)}
+                <div className="min-w-0 flex-1">
+                  <p className={`text-base font-semibold ${role === key ? 'text-navy-900' : 'text-gray-800'}`}>
+                    {t(`role_${key}`)}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-gray-500">{t(`roleDesc_${key}`)}</p>
+                </div>
+                <span
+                  className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                    role === key ? 'border-navy-600 bg-navy-600' : 'border-gray-300'
+                  }`}
+                >
+                  {role === key && <span className="h-2 w-2 rounded-full bg-white" />}
                 </span>
               </button>
             ))}
           </div>
+          {roleError && <p className="mt-2 text-sm text-red-600">{roleError}</p>}
         </div>
+
+        {!existingProfile && role === 'labour' && (
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">{t('inviteLabel')}</label>
+            <p className="text-xs text-gray-500 mb-2">{t('inviteHint')}</p>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              maxLength={6}
+              placeholder="ABC123"
+              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-base font-bold uppercase tracking-[0.3em] focus:border-navy-500 focus:outline-none"
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">{t('fullName')}</label>

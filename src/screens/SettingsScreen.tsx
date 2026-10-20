@@ -55,8 +55,8 @@ export function SettingsScreen({ onBack }: SettingsScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-navy-900 px-5 py-4 sticky top-0 z-10">
+    <div className="min-h-screen bg-concrete-50">
+      <header className="bg-gradient-to-r from-navy-700 to-navy-900 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={goBack}
@@ -125,7 +125,7 @@ function MainSettings({
       </div>
 
       {/* User info card */}
-      <div className="rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-navy-100">
             <Globe className="h-7 w-7 text-navy-600" />
@@ -140,7 +140,7 @@ function MainSettings({
       </div>
 
       {/* Language toggle */}
-      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-saffron-50">
@@ -156,7 +156,7 @@ function MainSettings({
       </div>
 
       {/* Menu items */}
-      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden">
         <SettingsRow
           icon={HelpCircle}
           iconBg="bg-navy-50"
@@ -258,7 +258,7 @@ function FaqPage({ t }: { t: (key: string) => string }) {
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+    <div className="rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-5 py-4 text-left"
@@ -403,7 +403,7 @@ function BackupButton({
     <button
       onClick={onClick}
       disabled={loading}
-      className="w-full flex items-center gap-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all text-left disabled:opacity-60"
+      className="w-full flex items-center gap-4 rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all text-left disabled:opacity-60"
     >
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-navy-50">
         <Icon className="h-6 w-6 text-navy-600" />
@@ -426,7 +426,7 @@ function SupportPage({ t }: { t: (key: string) => string }) {
 
       <a
         href="tel:+918000000000"
-        className="flex items-center gap-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all"
+        className="flex items-center gap-4 rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50">
           <Phone className="h-6 w-6 text-green-600" />
@@ -439,7 +439,7 @@ function SupportPage({ t }: { t: (key: string) => string }) {
 
       <a
         href="mailto:support@workerattendance.app"
-        className="flex items-center gap-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all"
+        className="flex items-center gap-4 rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-navy-50">
           <Mail className="h-6 w-6 text-navy-600" />
@@ -454,7 +454,7 @@ function SupportPage({ t }: { t: (key: string) => string }) {
         href="https://wa.me/918000000000"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all"
+        className="flex items-center gap-4 rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-saffron-50">
           <MessageCircle className="h-6 w-6 text-saffron-600" />
@@ -481,11 +481,11 @@ function AboutPage({ t }: { t: (key: string) => string }) {
         <p className="text-sm text-gray-500 mt-1">{t('version')} 1.0.0</p>
       </div>
 
-      <div className="rounded-2xl bg-white border border-gray-200 p-5 shadow-sm">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 p-5 shadow-sm">
         <p className="text-sm text-gray-600 leading-relaxed">{t('aboutDesc')}</p>
       </div>
 
-      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+      <div className="rounded-3xl bg-white ring-1 ring-navy-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
             <FileText className="h-5 w-5 text-gray-500" />

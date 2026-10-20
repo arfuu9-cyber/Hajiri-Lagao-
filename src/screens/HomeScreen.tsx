@@ -2,12 +2,15 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   HardHat, Nfc, UserPlus, UserCheck, UserX, WalletCards, Bell,
   TrendingUp, IndianRupee, HandCoins, QrCode, CreditCard,
-  ScanLine, Users, ChevronDown, ChevronUp, Calendar, Eye,
+  ScanLine, Users, ChevronDown, ChevronUp, Calendar, Eye, CheckCircle2, Clock, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import { DashboardStatCard } from '@/components/DashboardStatCard';
 import { ErrorView } from '@/components/ErrorView';
+import { TodayTasks } from '@/components/TodayTasks';
+import { createAttendance, AttendanceDuplicateError } from '@/services/attendanceService';
+import { getKolkataDateString } from '@/utils/date';
 import { fetchDashboardData, fetchLabourDashboardData, type DashboardData, type LabourDashboardData } from '@/services/payrollService';
 import type { UserRole } from '@/types/database';
 
@@ -21,10 +24,13 @@ function money(value: number): string {
 }
 
 export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
-  const { profile } = useAuth();
+  const { profile, myWorker } = useAuth();
   const { t } = useLang();
   const [stats, setStats] = useState<DashboardData | null>(null);
   const [labourStats, setLabourStats] = useState<LabourDashboardData | null>(null);
+  const [period, setPeriod] = useState<'week' | 'month'>('week');
+  const [selfMarking, setSelfMarking] = useState(false);
+  const [selfError, setSelfError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showMore, setShowMore] = useState(false);
@@ -35,8 +41,8 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
     try {
       if (role === 'labour') {
         const workerName = profile?.display_name?.trim();
-        if (workerName) {
-          const data = await fetchLabourDashboardData(workerName);
+        if (myWorker?.id || workerName) {
+          const data = await fetchLabourDashboardData({ id: myWorker?.id, name: workerName }, period);
           setLabourStats(data);
         }
       } else {
@@ -48,40 +54,82 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
     } finally {
       setLoading(false);
     }
-  }, [role, profile?.display_name]);
+  }, [role, profile?.display_name, myWorker?.id, period]);
 
   useEffect(() => {
     loadStats();
   }, [loadStats]);
 
+  // Mazdoor: pick up the thekedar's new haziri / kharchi without reloading
+  useEffect(() => {
+    if (role !== 'labour') return;
+    const timer = setInterval(async () => {
+      try {
+        const data = await fetchLabourDashboardData({ id: myWorker?.id, name: profile?.display_name }, period);
+        if (data) setLabourStats(data);
+      } catch {
+        /* keep showing the last data */
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [role, myWorker?.id, profile?.display_name, period]);
+
+  const markMyself = async () => {
+    if (!myWorker) return;
+    setSelfMarking(true);
+    setSelfError(false);
+    try {
+      try {
+        await createAttendance(myWorker.id, 'present');
+      } catch (err) {
+        if (!(err instanceof AttendanceDuplicateError)) throw err;
+      }
+      await loadStats();
+    } catch {
+      setSelfError(true);
+    } finally {
+      setSelfMarking(false);
+    }
+  };
+  const todayStr = getKolkataDateString();
+  const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' });
+  const firstName = profile?.display_name?.trim().split(' ')[0] ?? '';
+  const markedToday = !!labourStats?.recent?.some((r) => r.kind === 'attendance' && r.date === todayStr);
   const roleLabel = profile ? t(`role_${profile.role}`) : '';
 
   return (
     <div className="min-h-screen bg-concrete-50">
       <main className="mx-auto max-w-2xl space-y-6 px-5 py-5">
-        <section className="relative overflow-hidden rounded-[28px] bg-navy-900 px-6 py-6 text-white shadow-xl shadow-navy-900/15 construction-panel">
-          <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[18px] border-saffron-500/20" />
-          <div className="absolute -bottom-12 right-16 h-28 w-28 rounded-full border-[12px] border-white/5" />
-          <div className="relative flex items-start justify-between gap-4">
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-saffron-300">{t('siteDashboard')}</p>
-              <h1 className="text-2xl font-extrabold tracking-tight">{t('todaysOverview')}</h1>
-              <p className="mt-1 text-sm text-navy-200">
-                {roleLabel}{profile?.display_name ? ` · ${profile.display_name}` : ''}
-              </p>
-            </div>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-saffron-500 shadow-lg shadow-saffron-500/30">
-              <HardHat className="h-7 w-7 text-white" />
-            </div>
-          </div>
-          <div className="relative mt-6 flex items-center gap-2 text-xs font-semibold text-navy-100">
-            <span className="h-2 w-2 rounded-full bg-green-400 shadow-[0_0_0_4px_rgba(74,222,128,0.15)]" />
-            {t('siteReady')}
+        <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-navy-500 to-navy-800 px-6 py-6 text-white shadow-xl shadow-navy-600/20">
+          <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[18px] border-saffron-500/25" />
+          <div className="relative">
+            <p className="text-sm font-medium text-navy-100">{todayLabel}</p>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight">
+              {t('namaste')}{firstName ? `, ${firstName}` : ''}
+            </h1>
+            <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
+              <HardHat className="h-3.5 w-3.5 text-saffron-300" />
+              {roleLabel}
+            </span>
           </div>
         </section>
         {/* === THEKEDAR === */}
         {role === 'thekedar' && (
           <>
+            {!loading && !error && (stats?.presentToday ?? 0) + (stats?.absentToday ?? 0) === 0 && (
+            <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-navy-100">
+              <h2 className="mb-3 text-base font-bold text-gray-900">{t('howTitle')}</h2>
+              <ol className="space-y-3">
+                {[t('howStep1'), t('howStep2'), t('howStep3')].map((text, i) => (
+                  <li key={i} className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-saffron-500 text-sm font-bold text-white">{i + 1}</span>
+                    <span className="text-sm font-medium text-gray-800">{text}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+            )}
+            <TodayTasks onOpenList={() => onNavigate('nfcAttendance')} onChanged={loadStats} />
             {/* Dashboard stats */}
             <section>
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('todaysOverview')}</h2>
@@ -89,21 +137,17 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <DashboardStatCard label={t('presentToday')} value="" icon={UserCheck} loading accentColor="bg-green-50" />
                   <DashboardStatCard label={t('absentToday')} value="" icon={UserX} loading accentColor="bg-coral-50" />
-                  <DashboardStatCard label={t('weeklyPayout')} value="" icon={IndianRupee} loading accentColor="bg-amber-50" />
+                  <DashboardStatCard label={t('pendingAdvances')} value="" icon={HandCoins} loading accentColor="bg-amber-50" />
                   <DashboardStatCard label={t('attendanceRate')} value="" icon={TrendingUp} loading accentColor="bg-teal-50" />
                 </div>
               ) : error ? (
                 <ErrorView message={t('couldNotLoad')} onRetry={loadStats} />
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
                     <DashboardStatCard label={t('absentToday')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
-                    <DashboardStatCard label={t('weeklyPayout')} value={money(stats?.weeklyPayout ?? 0)} icon={IndianRupee} onClick={() => onNavigate('payroll')} accentColor="bg-amber-50" />
                     <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <DashboardStatCard label={t('newWorkersToday')} value={stats?.newWorkersToday ?? 0} icon={UserPlus} onClick={() => onNavigate('addWorker')} accentColor="bg-saffron-50" />
                     <DashboardStatCard label={t('pendingAdvances')} value={money(stats?.pendingAdvances ?? 0)} icon={HandCoins} onClick={() => onNavigate('payroll')} accentColor="bg-rose-50" />
                   </div>
                 </>
@@ -116,27 +160,11 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               <div className="space-y-4">
                 <ActionButton
                   icon={Nfc}
-                  iconBg="bg-saffron-50"
-                  iconColor="text-saffron-600"
+                  iconBg="bg-green-500"
+                  iconColor="text-white"
                   title={t('markAttendance')}
                   desc={t('markAttendanceDesc')}
                   onClick={() => onNavigate('nfcAttendance')}
-                />
-                <ActionButton
-                  icon={QrCode}
-                  iconBg="bg-navy-100"
-                  iconColor="text-navy-700"
-                  title={t('gatePassAction')}
-                  desc={t('gatePassThekedarDesc')}
-                  onClick={() => onNavigate('gatePass')}
-                />
-                <ActionButton
-                  icon={WalletCards}
-                  iconBg="bg-amber-50"
-                  iconColor="text-amber-600"
-                  title={t('viewPayroll')}
-                  desc={t('viewPayrollDesc')}
-                  onClick={() => onNavigate('payroll')}
                 />
               </div>
             </section>
@@ -145,33 +173,41 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             <section>
               <button
                 onClick={() => setShowMore((s) => !s)}
-                className="w-full flex items-center justify-between rounded-2xl bg-white border border-gray-200 px-5 py-4 shadow-sm hover:shadow-md transition-all"
+                className="w-full flex items-center justify-between rounded-3xl bg-white ring-1 ring-navy-100 px-5 py-4 shadow-sm hover:shadow-md transition-all"
               >
                 <span className="font-semibold text-gray-700">{t('moreActions')}</span>
                 {showMore ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
               </button>
               {showMore && (
                 <div className="space-y-4 mt-4">
+                    <ActionButton
+                      icon={WalletCards}
+                      iconBg="bg-violet-500"
+                      iconColor="text-white"
+                      title={t('viewPayroll')}
+                      desc={t('viewPayrollDesc')}
+                      onClick={() => onNavigate('payroll')}
+                    />
                   <ActionButton
                     icon={UserPlus}
-                    iconBg="bg-green-50"
-                    iconColor="text-green-600"
+                    iconBg="bg-saffron-500"
+                    iconColor="text-white"
                     title={t('addNewWorker')}
                     desc={t('addNewWorkerDesc')}
                     onClick={() => onNavigate('addWorker')}
                   />
                   <ActionButton
                     icon={CreditCard}
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-navy-500"
+                    iconColor="text-white"
                     title={t('newRegistrationAction')}
                     desc={t('newRegistrationDesc')}
                     onClick={() => onNavigate('registration')}
                   />
                   <ActionButton
                     icon={Bell}
-                    iconBg="bg-rose-50"
-                    iconColor="text-rose-600"
+                    iconBg="bg-rose-500"
+                    iconColor="text-white"
                     title={t('viewAlerts')}
                     desc={t('viewAlertsDesc')}
                     onClick={() => onNavigate('alerts')}
@@ -185,6 +221,19 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
         {/* === GATEKEEPER === */}
         {role === 'gatekeeper' && (
           <>
+            <button
+              onClick={() => onNavigate('gatePassScanner')}
+              className="flex w-full items-center gap-4 rounded-3xl bg-gradient-to-br from-saffron-400 to-saffron-600 p-6 text-left text-white shadow-xl shadow-saffron-500/30 transition active:scale-[0.98]"
+            >
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/20">
+                <ScanLine className="h-9 w-9" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xl font-extrabold">{t('gatePassScanner')}</span>
+                <span className="mt-1 block text-sm text-white/90">{t('gatePassScannerDesc')}</span>
+              </span>
+              <ChevronRight className="h-6 w-6 shrink-0" />
+            </button>
             {/* Dashboard stats */}
             <section>
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('todaysOverview')}</h2>
@@ -212,17 +261,9 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('quickActions')}</h2>
               <div className="space-y-4">
                 <ActionButton
-                  icon={ScanLine}
-                  iconBg="bg-saffron-50"
-                  iconColor="text-saffron-600"
-                  title={t('gatePassScanner')}
-                  desc={t('gatePassScannerDesc')}
-                  onClick={() => onNavigate('gatePassScanner')}
-                />
-                <ActionButton
                   icon={Nfc}
-                  iconBg="bg-green-50"
-                  iconColor="text-green-600"
+                  iconBg="bg-green-500"
+                  iconColor="text-white"
                   title={t('markAttendance')}
                   desc={t('markAttendanceDesc')}
                   onClick={() => onNavigate('nfcAttendance')}
@@ -234,7 +275,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             <section>
               <button
                 onClick={() => setShowMore((s) => !s)}
-                className="w-full flex items-center justify-between rounded-2xl bg-white border border-gray-200 px-5 py-4 shadow-sm hover:shadow-md transition-all"
+                className="w-full flex items-center justify-between rounded-3xl bg-white ring-1 ring-navy-100 px-5 py-4 shadow-sm hover:shadow-md transition-all"
               >
                 <span className="font-semibold text-gray-700">{t('moreActions')}</span>
                 {showMore ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
@@ -243,16 +284,16 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 <div className="space-y-4 mt-4">
                   <ActionButton
                     icon={Users}
-                    iconBg="bg-navy-100"
-                    iconColor="text-navy-700"
+                    iconBg="bg-navy-500"
+                    iconColor="text-white"
                     title={t('workers')}
                     desc={t('viewAllWorkers')}
                     onClick={() => onNavigate('viewWorkers')}
                   />
                   <ActionButton
                     icon={CreditCard}
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-navy-500"
+                    iconColor="text-white"
                     title={t('newRegistrationAction')}
                     desc={t('newRegistrationDesc')}
                     onClick={() => onNavigate('registration')}
@@ -266,7 +307,43 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
         {/* === LABOUR === */}
         {role === 'labour' && (
           <>
+            {!loading && labourStats && (
+              <section className={`rounded-3xl p-5 shadow-sm ring-1 ${markedToday ? 'bg-green-50 ring-green-200' : 'bg-saffron-50 ring-saffron-200'}`}>
+                <div className="flex items-center gap-3">
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${markedToday ? 'bg-green-500' : 'bg-saffron-500'}`}>
+                    {markedToday ? <CheckCircle2 className="h-6 w-6 text-white" /> : <Clock className="h-6 w-6 text-white" />}
+                  </span>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">{markedToday ? t('todayDone') : t('todayPending')}</h2>
+                    {!markedToday && <p className="text-xs text-gray-600">{t('todayPendingHint')}</p>}
+                  </div>
+                </div>
+                {!markedToday && myWorker && (
+                  <button
+                    type="button"
+                    onClick={markMyself}
+                    disabled={selfMarking}
+                    className="mt-4 w-full rounded-2xl bg-green-500 px-4 py-3.5 text-base font-bold text-white shadow-md transition active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {selfMarking ? '...' : t('markMyself')}
+                  </button>
+                )}
+                {selfError && <p className="mt-2 text-sm text-red-600">{t('couldNotSave')}</p>}
+              </section>
+            )}
             {/* Personal stats */}
+            <div className="flex gap-2 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-navy-100">
+              {(['week', 'month'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPeriod(p)}
+                  className={`flex-1 rounded-xl py-2 text-sm font-bold transition ${period === p ? 'bg-navy-600 text-white' : 'text-gray-500'}`}
+                >
+                  {t(p === 'week' ? 'periodWeek' : 'periodMonth')}
+                </button>
+              ))}
+            </div>
             <section>
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('mySummary')}</h2>
               {loading ? (
@@ -278,7 +355,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 <ErrorView message={t('couldNotLoad')} onRetry={loadStats} />
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <DashboardStatCard label={t('myDaysThisWeek')} value={labourStats?.myDaysThisWeek ?? 0} icon={Calendar} onClick={() => onNavigate('workerDetail')} accentColor="bg-teal-50" />
+                  <DashboardStatCard label={period === 'month' ? t('myDaysMonth') : t('myDaysThisWeek')} value={labourStats?.myDaysThisWeek ?? 0} icon={Calendar} onClick={() => onNavigate('workerDetail')} accentColor="bg-teal-50" />
                   <DashboardStatCard label={t('myEarnings')} value={money(labourStats?.myEarnings ?? 0)} icon={IndianRupee} onClick={() => onNavigate('workerDetail')} accentColor="bg-amber-50" />
                   <DashboardStatCard label={t('myAdvances')} value={money(labourStats?.myAdvances ?? 0)} icon={HandCoins} onClick={() => onNavigate('workerDetail')} accentColor="bg-rose-50" />
                   <DashboardStatCard label={t('dailyWage')} value={money(labourStats?.myDailyWage ?? 0)} icon={WalletCards} onClick={() => onNavigate('workerDetail')} accentColor="bg-navy-50" />
@@ -286,22 +363,37 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               )}
             </section>
 
+            {(labourStats?.recent?.length ?? 0) > 0 && (
+              <section>
+                <h2 className="text-base font-semibold text-gray-900 mb-3">{t('recentUpdates')}</h2>
+                <div className="space-y-2">
+                  {labourStats!.recent.map((r, i) => (
+                    <div key={i} className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-navy-100">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${r.kind === 'attendance' ? 'bg-green-500' : r.kind === 'payment' ? 'bg-navy-500' : 'bg-saffron-500'}`}>
+                        {r.kind === 'attendance' ? <UserCheck className="h-5 w-5 text-white" /> : r.kind === 'payment' ? <IndianRupee className="h-5 w-5 text-white" /> : <HandCoins className="h-5 w-5 text-white" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {r.kind === 'attendance' ? t('updAttendance') : r.kind === 'payment' ? `${t('updPaid')} ${money(r.amount)}` : `${t('updAdvance')} ${money(r.amount)}`}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : t('updPending')}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Quick actions — only what a labour needs */}
             <section>
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('quickActions')}</h2>
               <div className="space-y-4">
                 <ActionButton
-                  icon={Nfc}
-                  iconBg="bg-saffron-50"
-                  iconColor="text-saffron-600"
-                  title={t('myAttendance')}
-                  desc={t('myAttendanceDesc')}
-                  onClick={() => onNavigate('nfcAttendance')}
-                />
-                <ActionButton
                   icon={Eye}
-                  iconBg="bg-navy-100"
-                  iconColor="text-navy-700"
+                  iconBg="bg-sky-500"
+                  iconColor="text-white"
                   title={t('myDetails')}
                   desc={t('myDetailsDesc')}
                   onClick={() => onNavigate('workerDetail')}
@@ -313,7 +405,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             <section>
               <button
                 onClick={() => setShowMore((s) => !s)}
-                className="w-full flex items-center justify-between rounded-2xl bg-white border border-gray-200 px-5 py-4 shadow-sm hover:shadow-md transition-all"
+                className="w-full flex items-center justify-between rounded-3xl bg-white ring-1 ring-navy-100 px-5 py-4 shadow-sm hover:shadow-md transition-all"
               >
                 <span className="font-semibold text-gray-700">{t('moreActions')}</span>
                 {showMore ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
@@ -322,8 +414,8 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 <div className="space-y-4 mt-4">
                   <ActionButton
                     icon={CreditCard}
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-navy-500"
+                    iconColor="text-white"
                     title={t('newRegistrationAction')}
                     desc={t('newRegistrationDesc')}
                     onClick={() => onNavigate('registration')}
@@ -356,15 +448,16 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-4 rounded-2xl bg-white border border-gray-200 p-5 shadow-sm hover:shadow-md hover:border-navy-300 transition-all text-left"
+      className="flex w-full items-center gap-4 rounded-3xl bg-white p-4 text-left shadow-sm ring-1 ring-navy-100 transition hover:shadow-md active:scale-[0.98]"
     >
-      <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${iconBg} shrink-0`}>
+      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${iconBg} shadow-md`}>
         <Icon className={`h-7 w-7 ${iconColor}`} />
       </div>
-      <div className="flex-1">
-        <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-        <p className="text-sm text-gray-500 mt-0.5">{desc}</p>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-base font-bold text-gray-900">{title}</h3>
+        <p className="mt-0.5 text-sm leading-snug text-gray-500">{desc}</p>
       </div>
+      <ChevronRight className="h-5 w-5 shrink-0 text-gray-300" />
     </button>
   );
 }

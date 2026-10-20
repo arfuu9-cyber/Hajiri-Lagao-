@@ -34,7 +34,7 @@ type StackScreen =
 type QuickAction = 'nfcAttendance' | 'addWorker' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers';
 
 function MainApp() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, myWorker, loading } = useAuth();
   const { t } = useLang();
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -91,7 +91,7 @@ function MainApp() {
   }
 
   if (stackScreen === 'registration') {
-    return <RegistrationScreen onBack={returnToTabs} onSaved={returnToTabs} />;
+    return <RegistrationScreen onBack={returnToTabs} onSaved={returnToTabs} existingProfile />;
   }
 
   if (stackScreen === 'gatePassThekedar') {
@@ -116,6 +116,11 @@ function MainApp() {
       setActiveTab('workers');
       setRefreshKey((k) => k + 1);
     } else if (action === 'workerDetail') {
+      if (myWorker?.id) {
+        setSelectedWorkerId(myWorker.id);
+        setStackScreen('workerDetail');
+        return;
+      }
       const workerName = profile?.display_name?.trim();
       if (workerName) {
         const { data } = await supabase

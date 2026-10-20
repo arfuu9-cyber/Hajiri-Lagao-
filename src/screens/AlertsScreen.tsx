@@ -41,8 +41,8 @@ export function AlertsScreen({ isActive }: { isActive: boolean }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+      <div className="min-h-screen bg-concrete-50">
+        <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
           <h1 className="text-lg font-bold text-gray-900">{t('alertsNotifications')}</h1>
         </header>
         <LoadingView message={t('loading')} />
@@ -52,8 +52,8 @@ export function AlertsScreen({ isActive }: { isActive: boolean }) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+      <div className="min-h-screen bg-concrete-50">
+        <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
           <h1 className="text-lg font-bold text-gray-900">{t('alertsNotifications')}</h1>
         </header>
         <ErrorView message={t('couldNotLoad')} onRetry={loadAlerts} />
@@ -64,8 +64,8 @@ export function AlertsScreen({ isActive }: { isActive: boolean }) {
   const hasAlerts = absentWorkers.length > 0 || recentAdvances.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+    <div className="min-h-screen bg-concrete-50">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
             <Bell className="h-5 w-5 text-rose-600" />

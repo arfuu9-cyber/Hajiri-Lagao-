@@ -19,6 +19,9 @@ export interface Worker {
   id_photo_url: string | null;
   age: number | null;
   profile_photo_url: string | null;
+  user_id?: string | null;
+  thekedar_id?: string | null;
+  invite_code?: string | null;
 }
 
 export interface WorkerInput {
@@ -28,6 +31,8 @@ export interface WorkerInput {
   daily_wage: number;
   age?: number | null;
   profile_photo_url?: string | null;
+  user_id?: string | null;
+  thekedar_id?: string | null;
 }
 
 export interface Attendance {
@@ -63,7 +68,7 @@ export interface Advance {
 }
 
 export interface PayrollRow {
-  worker: Pick<Worker, 'id' | 'name' | 'role' | 'daily_wage'>;
+  worker: Pick<Worker, 'id' | 'name' | 'role' | 'daily_wage' | 'phone'>;
   totalDays: number;
   totalWage: number;
   overtimePay: number;

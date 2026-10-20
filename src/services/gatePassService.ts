@@ -41,16 +41,13 @@ export async function markBatchAttendance(workerIds: string[]): Promise<number> 
   return marked;
 }
 
-/**
- * Fetch workers associated with a Thekedar.
- * Currently returns all active workers since we don't have a thekedar-worker link table.
- * In future, a `thekedar_id` column on workers could filter this.
- */
+/** Fetch the active mazdoor who belong to this thekedar. */
 export async function fetchThekedarWorkers(thekedarId: string) {
   const { data, error } = await supabase
     .from('workers')
     .select('*')
     .eq('active', true)
+    .eq('thekedar_id', thekedarId)
     .order('name', { ascending: true });
 
   if (error) throw error;

@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, User, Phone, Briefcase, IndianRupee, Camera, X, Image as ImageIcon } from 'lucide-react';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useLang } from '@/context/LangContext';
+import { useAuth } from '@/context/AuthContext';
 import { validateName, validatePhone, validateRole, WORKER_ROLES } from '@/utils/validation';
 import { createWorker, uploadWorkerPhoto } from '@/services/workerService';
 
@@ -12,6 +13,7 @@ interface AddWorkerScreenProps {
 
 export function AddWorkerScreen({ onBack, onSaved }: AddWorkerScreenProps) {
   const { t } = useLang();
+  const { profile, myWorker } = useAuth();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState('');
@@ -102,6 +104,7 @@ export function AddWorkerScreen({ onBack, onSaved }: AddWorkerScreenProps) {
         daily_wage: wage,
         age: ageNum,
         profile_photo_url: photoUrl,
+        thekedar_id: profile?.role === 'thekedar' ? myWorker?.id ?? null : null,
       });
       onSaved();
     } catch (err) {
@@ -115,7 +118,7 @@ export function AddWorkerScreen({ onBack, onSaved }: AddWorkerScreenProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-5 py-4 sticky top-0 z-10">
+      <header className="bg-white/95 backdrop-blur border-b border-navy-100 px-5 py-4 sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}

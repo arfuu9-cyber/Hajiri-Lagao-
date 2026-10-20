@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck, Zap } from 'lucide-react';
+import { Nfc, ShieldCheck, WalletCards } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import { LangToggle } from '@/components/PrimaryButton';
@@ -51,17 +51,21 @@ export function LoginScreen() {
           <h1 className="text-2xl font-extrabold tracking-tight text-white">{t('appName')}</h1>
           <p className="text-sm text-navy-300 mt-1.5 text-center">{t('googleSignInSubtitle')}</p>
 
-          {/* Feature badges */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-navy-800/60 px-3 py-1.5 text-xs font-medium text-navy-200 ring-1 ring-navy-700/50">
-              <Zap className="h-3.5 w-3.5 text-saffron-400" />
-              NFC Haziri
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-navy-800/60 px-3 py-1.5 text-xs font-medium text-navy-200 ring-1 ring-navy-700/50">
-              <ShieldCheck className="h-3.5 w-3.5 text-green-400" />
-              {t('secureLogin')}
-            </span>
-          </div>
+          {/* What the app does */}
+          <ul className="mt-6 w-full space-y-3 text-left">
+            {[
+              { icon: Nfc, color: 'bg-green-500', text: t('loginPoint1') },
+              { icon: WalletCards, color: 'bg-violet-500', text: t('loginPoint2') },
+              { icon: ShieldCheck, color: 'bg-sky-500', text: t('loginPoint3') },
+            ].map(({ icon: Icon, color, text }) => (
+              <li key={text} className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/10">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color}`}>
+                  <Icon className="h-5 w-5 text-white" />
+                </span>
+                <span className="text-sm font-medium text-white">{text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {error && (
