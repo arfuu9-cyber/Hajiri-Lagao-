@@ -14,7 +14,7 @@ export async function fetchPayroll(range: PayrollRange, teamId?: string): Promis
   if (teamId) workersQuery = workersQuery.eq('thekedar_id', teamId);
   const [{ data: workers, error: workerError }, { data: attendance, error: attendanceError }, { data: advances, error: advanceError }] = await Promise.all([
     workersQuery.order('name'),
-    supabase.from('attendance').select('worker_id, date, status, half_day, duty_multiplier, overtime_hours').gte('date', range.start).lte('date', range.end),
+    supabase.from('attendance').select('worker_id, date, status, half_day, duty_multiplier, overtime_hours').eq('approval_status', 'approved').gte('date', range.start).lte('date', range.end),
     supabase.from('advances').select('worker_id, amount, date, note').eq('status', 'verified').gte('date', range.start).lte('date', range.end),
   ]);
 
@@ -151,7 +151,7 @@ export async function fetchWorkerDetail(workerId: string): Promise<WorkerDetail>
   const [{ data: worker, error: workerError }, { data: advances, error: advanceError }, { data: attendance, error: attendanceError }] = await Promise.all([
     supabase.from('workers').select('*').eq('id', workerId).single(),
     supabase.from('advances').select('id, worker_id, amount, date, note, created_at, status, given_by, verified_at').eq('worker_id', workerId).order('date', { ascending: false }),
-    supabase.from('attendance').select('date, status, half_day, duty_multiplier, overtime_hours').eq('worker_id', workerId).order('date', { ascending: false }),
+    supabase.from('attendance').select('date, status, half_day, duty_multiplier, overtime_hours, approval_status').eq('approval_status', 'approved').eq('worker_id', workerId).order('date', { ascending: false }),
   ]);
 
   if (workerError) throw workerError;
@@ -168,6 +168,7 @@ export async function fetchWorkerDetail(workerId: string): Promise<WorkerDetail>
 export interface DashboardData {
   presentToday: number;
   absentToday: number;
+  onLeaveToday: number;
   newWorkersToday: number;
   weeklyPayout: number;
   attendanceRate: number;
@@ -175,49 +176,72 @@ export interface DashboardData {
   activeWorkers: number;
 }
 
+/**
+ * Dashboard totals are based on active workers owned/visible to the signed-in team.
+ * A zero duty multiplier is treated as planned leave, not as a present worker.
+ * Workers without a saved record are shown as attendance pending (not confirmed absent).
+ */
 export async function fetchDashboardData(): Promise<DashboardData> {
   const today = getKolkataDateString();
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekStart = period === 'month' ? `${today.slice(0, 8)}01` : weekAgo.toISOString().slice(0, 10);
+  const localMidnight = new Date(`${today}T00:00:00+05:30`).toISOString();
+  const weekStartDate = new Date(`${today}T00:00:00+05:30`);
+  weekStartDate.setDate(weekStartDate.getDate() - 6);
+  const weekStart = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(weekStartDate);
 
-  const [{ data: activeWorkersList }, { count: presentCount }, { count: activeCount }, { count: newWorkersCount }, { data: weekAttendance }, { data: weekAdvances }, { data: workers }] = await Promise.all([
-    supabase.from('workers').select('id').eq('active', true),
-    supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('date', today),
-    supabase.from('workers').select('*', { count: 'exact', head: true }).eq('active', true),
-    supabase.from('workers').select('*', { count: 'exact', head: true }).gte('created_at', new Date(`${today}T00:00:00+05:30`).toISOString()),
-    supabase.from('attendance').select('worker_id, half_day').gte('date', weekStart).lte('date', today),
-    supabase.from('advances').select('amount').eq('status', 'verified').gte('date', weekStart).lte('date', today),
-    supabase.from('workers').select('daily_wage').eq('active', true),
+  const [workersResult, newWorkersResult, todayAttendanceResult, weekAttendanceResult, pendingAdvancesResult] = await Promise.all([
+    supabase.from('workers').select('id, daily_wage').eq('active', true),
+    supabase.from('workers').select('id', { count: 'exact', head: true }).eq('active', true).gte('created_at', localMidnight),
+    supabase.from('attendance').select('worker_id, status, half_day, duty_multiplier').eq('approval_status', 'approved').eq('date', today),
+    supabase.from('attendance').select('worker_id, half_day, duty_multiplier, overtime_hours').eq('approval_status', 'approved').gte('date', weekStart).lte('date', today),
+    supabase.from('advances').select('amount').eq('status', 'pending').lte('date', today),
   ]);
 
-  const activeWorkers = activeCount ?? 0;
-  const presentToday = presentCount ?? 0;
-  const absentToday = Math.max(0, activeWorkers - presentToday);
-  const newWorkersToday = newWorkersCount ?? 0;
+  const failure = [workersResult, newWorkersResult, todayAttendanceResult, weekAttendanceResult, pendingAdvancesResult]
+    .find((result) => result.error)?.error;
+  if (failure) throw failure;
+
+  const activeWorkersList = workersResult.data ?? [];
+  const activeWorkerIds = new Set(activeWorkersList.map((worker) => worker.id));
+  const activeWorkers = activeWorkersList.length;
+  const todayRows = (todayAttendanceResult.data ?? []).filter((row) => activeWorkerIds.has(row.worker_id));
+  const presentWorkerIds = new Set<string>();
+  const leaveWorkerIds = new Set<string>();
+
+  todayRows.forEach((row) => {
+    const multiplier = Number(row.duty_multiplier ?? (row.half_day ? 0.5 : 1));
+    if (multiplier <= 0) leaveWorkerIds.add(row.worker_id);
+    else if (row.status === 'present' || row.status === 'late') presentWorkerIds.add(row.worker_id);
+  });
+
+  // A malformed/duplicate state should never make totals exceed the active team size.
+  const presentToday = Math.min(activeWorkers, presentWorkerIds.size);
+  const onLeaveToday = Math.min(Math.max(0, activeWorkers - presentToday), leaveWorkerIds.size);
+  const absentToday = Math.max(0, activeWorkers - presentToday - onLeaveToday);
+  const newWorkersToday = newWorkersResult.count ?? 0;
 
   const workerWageMap = new Map<string, number>();
-  (workers ?? []).forEach((w: any) => {
-    workerWageMap.set(w.id ?? '', Number(w.daily_wage ?? 0));
-  });
+  activeWorkersList.forEach((worker) => workerWageMap.set(worker.id, Number(worker.daily_wage ?? 0)));
 
   let weeklyPayout = 0;
-  (weekAttendance ?? []).forEach((record: any) => {
+  (weekAttendanceResult.data ?? []).forEach((record) => {
+    if (!activeWorkerIds.has(record.worker_id)) return;
     const dayValue = Number(record.duty_multiplier ?? (record.half_day ? 0.5 : 1));
-    const wage = workerWageMap.get(record.worker_id) ?? 0;
-    weeklyPayout += dayValue * wage;
+    weeklyPayout += dayValue * (workerWageMap.get(record.worker_id) ?? 0);
+    weeklyPayout += Number(record.overtime_hours ?? 0) * OVERTIME_RATE_PER_HOUR;
   });
 
-  let pendingAdvances = 0;
-  (weekAdvances ?? []).forEach((a: any) => {
-    pendingAdvances += Number(a.amount);
-  });
-
-  const attendanceRate = activeWorkers > 0 ? Math.round((presentToday / activeWorkers) * 100) : 0;
+  const pendingAdvances = (pendingAdvancesResult.data ?? []).reduce(
+    (sum, advance) => sum + Number(advance.amount ?? 0), 0,
+  );
+  const scheduledWorkers = Math.max(0, activeWorkers - onLeaveToday);
+  const attendanceRate = scheduledWorkers > 0 ? Math.round((presentToday / scheduledWorkers) * 100) : 0;
 
   return {
     presentToday,
     absentToday,
+    onLeaveToday,
     newWorkersToday,
     weeklyPayout,
     attendanceRate,
@@ -239,6 +263,7 @@ export interface LabourRecentItem {
   date: string;
   amount: number;
   status?: string;
+  note?: string;
 }
 
 export async function fetchLabourDashboardData(who: { id?: string | null; name?: string | null }, period: 'week' | 'month' = 'week'): Promise<LabourDashboardData | null> {
@@ -256,11 +281,12 @@ export async function fetchLabourDashboardData(who: { id?: string | null; name?:
   const today = getKolkataDateString();
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekStart = weekAgo.toISOString().slice(0, 10);
+  const weekStart = period === 'month' ? `${today.slice(0, 8)}01` : weekAgo.toISOString().slice(0, 10);
 
   const [{ data: attendance }, { data: advances }] = await Promise.all([
     supabase.from('attendance')
       .select('duty_multiplier, half_day')
+      .eq('approval_status', 'approved')
       .eq('worker_id', worker.id)
       .gte('date', weekStart)
       .lte('date', today),
@@ -284,7 +310,7 @@ export async function fetchLabourDashboardData(who: { id?: string | null; name?:
   });
 
   const [{ data: recentAtt }, { data: recentAdv }, { data: recentPay }] = await Promise.all([
-    supabase.from('attendance').select('date, half_day, duty_multiplier')
+    supabase.from('attendance').select('date, half_day, duty_multiplier, approval_status, rejection_reason')
       .eq('worker_id', worker.id).order('date', { ascending: false }).limit(5),
     supabase.from('advances').select('amount, status, date')
       .eq('worker_id', worker.id).order('date', { ascending: false }).limit(5),
@@ -296,6 +322,8 @@ export async function fetchLabourDashboardData(who: { id?: string | null; name?:
       kind: 'attendance' as const,
       date: String(r.date),
       amount: Number(r.duty_multiplier ?? (r.half_day ? 0.5 : 1)),
+      status: String(r.approval_status ?? 'approved'),
+      note: r.rejection_reason ? String(r.rejection_reason) : undefined,
     })),
     ...(recentAdv ?? []).map((a: any) => ({
       kind: 'advance' as const,
@@ -352,13 +380,14 @@ export async function fetchRecentAdvances(limit: number = 10): Promise<(Advance 
       created_at,
       status,
       given_by,
-      verified_at,
-      worker:workers ( name, role )
+      verified_at
     `)
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) throw error;
+  const { data: ws } = await supabase.from('workers').select('id, name, role').in('id', [...new Set((data ?? []).map((r: any) => r.worker_id))]);
+  const wmap = new Map((ws ?? []).map((w: any) => [w.id, w]));
   return (data ?? []).map((row: any) => ({
     id: row.id,
     worker_id: row.worker_id,
@@ -369,7 +398,7 @@ export async function fetchRecentAdvances(limit: number = 10): Promise<(Advance 
     status: row.status ?? 'pending',
     given_by: row.given_by ?? null,
     verified_at: row.verified_at ?? null,
-    worker: row.worker,
+    worker: (wmap.get(row.worker_id) ?? { name: '-', role: '' }) as any,
   }));
 }
 
@@ -381,6 +410,7 @@ export async function fetchWorkerAttendanceByMonth(workerId: string, year: numbe
   const { data, error } = await supabase
     .from('attendance')
     .select('date, status, half_day, overtime_hours')
+    .eq('approval_status', 'approved')
     .eq('worker_id', workerId)
     .gte('date', startDate)
     .lte('date', endDate)

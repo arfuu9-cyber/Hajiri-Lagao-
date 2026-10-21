@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Users, Search, CreditCard, CheckCircle2, XCircle, Loader2, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Users, Search, CreditCard, CheckCircle2, XCircle, Loader2, ChevronRight, ShieldCheck, Plus, X, UserPlus, HardHat } from 'lucide-react';
 import { LoadingView } from '@/components/LoadingView';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
@@ -20,7 +20,7 @@ import type { Worker } from '@/types/database';
 
 interface WorkersScreenProps {
   isActive: boolean;
-  onAddWorker: () => void;
+  onAddWorker: (initialRole?: string) => void;
   onViewDetail: (workerId: string) => void;
 }
 
@@ -28,11 +28,12 @@ type AssignState = 'idle' | 'scanning' | 'saving' | 'success' | 'error';
 
 export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersScreenProps) {
   const { t } = useLang();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // NFC assignment state
@@ -332,6 +333,37 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
           </div>
         )}
       </div>
+
+      {/* Floating Add Labour toggle: stays reachable above the bottom navigation. */}
+      {profile?.role === 'thekedar' && isActive && (
+        <>
+          {addMenuOpen && (
+            <div className="fixed bottom-36 right-4 z-30 flex w-[min(300px,calc(100vw-2rem))] flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl sm:right-6">
+              <p className="px-2 pb-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Naya worker add karein</p>
+              <button type="button" onClick={() => { setAddMenuOpen(false); onAddWorker('Helper'); }} className="flex items-center gap-3 rounded-xl p-3 text-left transition hover:bg-emerald-50 active:scale-[0.99]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800"><UserPlus className="h-5 w-5" /></span>
+                <span className="flex-1"><span className="block text-sm font-extrabold text-slate-900">Add Mazdoor / Helper</span><span className="mt-0.5 block text-xs text-slate-500">Helper ki details aur daily wage</span></span>
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </button>
+              <button type="button" onClick={() => { setAddMenuOpen(false); onAddWorker('Mason'); }} className="flex items-center gap-3 rounded-xl p-3 text-left transition hover:bg-sky-50 active:scale-[0.99]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-800"><HardHat className="h-5 w-5" /></span>
+                <span className="flex-1"><span className="block text-sm font-extrabold text-slate-900">Add Karigar / Mistri</span><span className="mt-0.5 block text-xs text-slate-500">Trade aur daily wage set karein</span></span>
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            aria-expanded={addMenuOpen}
+            aria-label={addMenuOpen ? 'Close add worker menu' : 'Open add worker menu'}
+            onClick={() => setAddMenuOpen((open) => !open)}
+            className="fixed bottom-28 right-4 z-30 inline-flex min-h-14 items-center gap-3 rounded-2xl bg-[#0057B8] px-5 py-4 text-sm font-extrabold text-white shadow-xl shadow-blue-900/25 transition hover:bg-[#064A98] active:scale-95 sm:right-6"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">{addMenuOpen ? <X className="h-5 w-5" /> : <Plus className="h-5 w-5" />}</span>
+            {addMenuOpen ? 'Close' : 'Add Labor'}
+          </button>
+        </>
+      )}
 
       {/* Advance Modal */}
       {advanceWorker && (

@@ -132,7 +132,7 @@ function MainSettings({
           </div>
           <div>
             <p className="font-bold text-gray-900">
-              {user?.phone ?? user?.email ?? 'User'}
+              {user?.email || user?.phone || 'User'}
             </p>
             <p className="text-sm text-gray-500">{t('signedInAs')}</p>
           </div>

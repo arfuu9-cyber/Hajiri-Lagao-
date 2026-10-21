@@ -3,11 +3,13 @@ import { AlertCircle } from 'lucide-react';
 interface ErrorViewProps {
   message?: string;
   onRetry?: () => void;
+  detail?: string;
 }
 
 export function ErrorView({
   message = 'Something went wrong. Please try again.',
   onRetry,
+  detail,
 }: ErrorViewProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
@@ -15,6 +17,7 @@ export function ErrorView({
         <AlertCircle className="h-8 w-8 text-red-500" />
       </div>
       <p className="text-base font-semibold text-gray-900">{message}</p>
+      {detail && <p className="mt-2 max-w-xs break-words text-xs text-gray-400">{detail}</p>}
       {onRetry && (
         <button
           onClick={onRetry}

@@ -106,6 +106,25 @@ export function PayrollScreen({ isActive }: { isActive: boolean }) {
     }
   };
 
+  const todoPay = rows.filter((r) => r.finalPayout > 0 && paid[r.worker.id] == null);
+  const todoTotal = todoPay.reduce((sum, r) => sum + r.finalPayout, 0);
+  const payAll = async () => {
+    if (todoPay.length === 0) return;
+    if (!window.confirm(`${todoPay.length} mazdoor ko kul ${money(todoTotal)} ka bhugtaan kiya?`)) return;
+    setPayingId('all');
+    setPayError(false);
+    try {
+      for (const r of todoPay) {
+        await recordPayment({ workerId: r.worker.id, amount: r.finalPayout, range });
+        setPaid((prev) => ({ ...prev, [r.worker.id]: r.finalPayout }));
+      }
+    } catch {
+      setPayError(true);
+    } finally {
+      setPayingId(null);
+    }
+  };
+
   const shareOnWhatsApp = (row: PayrollRow) => {
     const digits = (row.worker.phone ?? '').replace(/\D/g, '');
     const number = digits.length === 10 ? `91${digits}` : digits;
@@ -189,6 +208,11 @@ export function PayrollScreen({ isActive }: { isActive: boolean }) {
             </div>
             <section className="space-y-3">
               {payError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{t('couldNotSave')}</p>}
+              {todoPay.length > 0 && (
+                <button type="button" disabled={payingId !== null} onClick={payAll} className="w-full rounded-2xl bg-navy-600 py-3.5 text-base font-bold text-white shadow-md active:scale-[0.98] disabled:opacity-50">
+                  {payingId === 'all' ? '...' : `Sabko bhugtaan karo (${money(todoTotal)})`}
+                </button>
+              )}
               {rows.length === 0 ? <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center text-gray-500">{t('noWorkersFound')}</div> : rows.map((row) => (
                 <article key={row.worker.id} className="rounded-3xl ring-1 ring-navy-100 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">

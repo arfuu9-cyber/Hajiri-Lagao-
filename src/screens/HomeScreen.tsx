@@ -8,7 +8,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import { DashboardStatCard } from '@/components/DashboardStatCard';
 import { ErrorView } from '@/components/ErrorView';
+import { errText } from '@/utils/errors';
 import { TodayTasks } from '@/components/TodayTasks';
+import { PendingAttendanceApprovals } from '@/components/PendingAttendanceApprovals';
+import { AdvanceRequests } from '@/components/AdvanceRequests';
 import { createAttendance, AttendanceDuplicateError } from '@/services/attendanceService';
 import { getKolkataDateString } from '@/utils/date';
 import { fetchDashboardData, fetchLabourDashboardData, type DashboardData, type LabourDashboardData } from '@/services/payrollService';
@@ -34,6 +37,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [errorDetail, setErrorDetail] = useState('');
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -49,8 +53,9 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
         const data = await fetchDashboardData();
         setStats(data);
       }
-    } catch {
+    } catch (err) {
       setError(true);
+      setErrorDetail(errText(err));
     } finally {
       setLoading(false);
     }
@@ -94,7 +99,10 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
   const todayStr = getKolkataDateString();
   const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' });
   const firstName = profile?.display_name?.trim().split(' ')[0] ?? '';
-  const markedToday = !!labourStats?.recent?.some((r) => r.kind === 'attendance' && r.date === todayStr);
+  const todayAttendance = labourStats?.recent?.find((r) => r.kind === 'attendance' && r.date === todayStr);
+  const markedToday = todayAttendance?.status === 'approved';
+  const pendingToday = todayAttendance?.status === 'pending';
+  const rejectedToday = todayAttendance?.status === 'rejected';
   const roleLabel = profile ? t(`role_${profile.role}`) : '';
 
   return (
@@ -111,12 +119,28 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               <HardHat className="h-3.5 w-3.5 text-saffron-300" />
               {roleLabel}
             </span>
+            {role === 'thekedar' && stats && stats.activeWorkers > 0 && (
+              <div className="mt-5">
+                <div className="flex items-end justify-between text-white">
+                  <span className="text-sm font-medium text-navy-100">{t('tasksTitle')}</span>
+                  <span className="text-lg font-extrabold">{stats.presentToday}/{Math.max(0, stats.activeWorkers - stats.onLeaveToday)}</span>
+                </div>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/20">
+                  <div className="h-full rounded-full bg-saffron-400 transition-all" style={{ width: `${Math.min(100, stats.attendanceRate)}%` }} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-white/90">
+                  <span>{stats.presentToday} {t('presentToday')}</span>
+                  <span>{stats.onLeaveToday} {t('onLeaveToday')}</span>
+                  <span>{stats.absentToday} {t('attendancePending')}</span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
         {/* === THEKEDAR === */}
         {role === 'thekedar' && (
           <>
-            {!loading && !error && (stats?.presentToday ?? 0) + (stats?.absentToday ?? 0) === 0 && (
+            {!loading && !error && (stats?.presentToday ?? 0) + (stats?.absentToday ?? 0) + (stats?.onLeaveToday ?? 0) === 0 && (
             <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-navy-100">
               <h2 className="mb-3 text-base font-bold text-gray-900">{t('howTitle')}</h2>
               <ol className="space-y-3">
@@ -130,89 +154,37 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             </section>
             )}
             <TodayTasks onOpenList={() => onNavigate('nfcAttendance')} onChanged={loadStats} />
+            <PendingAttendanceApprovals onChanged={loadStats} />
+            <AdvanceRequests onChanged={loadStats} />
+            <div className="grid grid-cols-3 gap-3">
+              <QuickTile icon={UserPlus} color="bg-saffron-500" label={t('tileNewWorker')} onClick={() => onNavigate('addWorker')} />
+              <QuickTile icon={HandCoins} color="bg-navy-700" label={t('tileGiveAdvance')} onClick={() => onNavigate('viewWorkers')} />
+              <QuickTile icon={WalletCards} color="bg-navy-600" label={t('tileHisaab')} onClick={() => onNavigate('payroll')} />
+              <QuickTile icon={Nfc} color="bg-green-500" label={t('tileNfc')} onClick={() => onNavigate('nfcAttendance')} />
+              <QuickTile icon={CreditCard} color="bg-navy-500" label={t('tileRegister')} onClick={() => onNavigate('registration')} />
+              <QuickTile icon={Bell} color="bg-saffron-600" label={t('tileAlerts')} onClick={() => onNavigate('alerts')} />
+            </div>
             {/* Dashboard stats */}
             <section>
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('todaysOverview')}</h2>
               {loading ? (
                 <div className="grid grid-cols-2 gap-4">
                   <DashboardStatCard label={t('presentToday')} value="" icon={UserCheck} loading accentColor="bg-green-50" />
-                  <DashboardStatCard label={t('absentToday')} value="" icon={UserX} loading accentColor="bg-coral-50" />
+                  <DashboardStatCard label={t('attendancePending')} value="" icon={UserX} loading accentColor="bg-coral-50" />
                   <DashboardStatCard label={t('pendingAdvances')} value="" icon={HandCoins} loading accentColor="bg-amber-50" />
                   <DashboardStatCard label={t('attendanceRate')} value="" icon={TrendingUp} loading accentColor="bg-teal-50" />
                 </div>
               ) : error ? (
-                <ErrorView message={t('couldNotLoad')} onRetry={loadStats} />
+                <ErrorView message={t('couldNotLoad')} onRetry={loadStats} detail={errorDetail} />
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
-                    <DashboardStatCard label={t('absentToday')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
+                    <DashboardStatCard label={t('attendancePending')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
                     <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
                     <DashboardStatCard label={t('pendingAdvances')} value={money(stats?.pendingAdvances ?? 0)} icon={HandCoins} onClick={() => onNavigate('payroll')} accentColor="bg-rose-50" />
                   </div>
                 </>
-              )}
-            </section>
-
-            {/* Quick actions */}
-            <section>
-              <h2 className="text-base font-semibold text-gray-900 mb-3">{t('quickActions')}</h2>
-              <div className="space-y-4">
-                <ActionButton
-                  icon={Nfc}
-                  iconBg="bg-green-500"
-                  iconColor="text-white"
-                  title={t('markAttendance')}
-                  desc={t('markAttendanceDesc')}
-                  onClick={() => onNavigate('nfcAttendance')}
-                />
-              </div>
-            </section>
-
-            {/* More actions */}
-            <section>
-              <button
-                onClick={() => setShowMore((s) => !s)}
-                className="w-full flex items-center justify-between rounded-3xl bg-white ring-1 ring-navy-100 px-5 py-4 shadow-sm hover:shadow-md transition-all"
-              >
-                <span className="font-semibold text-gray-700">{t('moreActions')}</span>
-                {showMore ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
-              </button>
-              {showMore && (
-                <div className="space-y-4 mt-4">
-                    <ActionButton
-                      icon={WalletCards}
-                      iconBg="bg-violet-500"
-                      iconColor="text-white"
-                      title={t('viewPayroll')}
-                      desc={t('viewPayrollDesc')}
-                      onClick={() => onNavigate('payroll')}
-                    />
-                  <ActionButton
-                    icon={UserPlus}
-                    iconBg="bg-saffron-500"
-                    iconColor="text-white"
-                    title={t('addNewWorker')}
-                    desc={t('addNewWorkerDesc')}
-                    onClick={() => onNavigate('addWorker')}
-                  />
-                  <ActionButton
-                    icon={CreditCard}
-                    iconBg="bg-navy-500"
-                    iconColor="text-white"
-                    title={t('newRegistrationAction')}
-                    desc={t('newRegistrationDesc')}
-                    onClick={() => onNavigate('registration')}
-                  />
-                  <ActionButton
-                    icon={Bell}
-                    iconBg="bg-rose-500"
-                    iconColor="text-white"
-                    title={t('viewAlerts')}
-                    desc={t('viewAlertsDesc')}
-                    onClick={() => onNavigate('alerts')}
-                  />
-                </div>
               )}
             </section>
           </>
@@ -240,16 +212,16 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               {loading ? (
                 <div className="grid grid-cols-2 gap-4">
                   <DashboardStatCard label={t('presentToday')} value="" icon={UserCheck} loading accentColor="bg-green-50" />
-                  <DashboardStatCard label={t('absentToday')} value="" icon={UserX} loading accentColor="bg-coral-50" />
+                  <DashboardStatCard label={t('attendancePending')} value="" icon={UserX} loading accentColor="bg-coral-50" />
                   <DashboardStatCard label={t('activeWorkers')} value="" icon={Users} loading accentColor="bg-navy-50" />
                   <DashboardStatCard label={t('attendanceRate')} value="" icon={TrendingUp} loading accentColor="bg-teal-50" />
                 </div>
               ) : error ? (
-                <ErrorView message={t('couldNotLoad')} onRetry={loadStats} />
+                <ErrorView message={t('couldNotLoad')} onRetry={loadStats} detail={errorDetail} />
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
-                  <DashboardStatCard label={t('absentToday')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
+                  <DashboardStatCard label={t('attendancePending')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
                   <DashboardStatCard label={t('activeWorkers')} value={stats?.activeWorkers ?? 0} icon={Users} onClick={() => onNavigate('viewWorkers')} accentColor="bg-navy-50" />
                   <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
                 </div>
@@ -308,26 +280,29 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
         {role === 'labour' && (
           <>
             {!loading && labourStats && (
-              <section className={`rounded-3xl p-5 shadow-sm ring-1 ${markedToday ? 'bg-green-50 ring-green-200' : 'bg-saffron-50 ring-saffron-200'}`}>
+              <section className={`rounded-3xl p-5 shadow-sm ring-1 ${markedToday ? 'bg-green-50 ring-green-200' : pendingToday ? 'bg-sky-50 ring-sky-200' : rejectedToday ? 'bg-rose-50 ring-rose-200' : 'bg-saffron-50 ring-saffron-200'}`}>
                 <div className="flex items-center gap-3">
-                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${markedToday ? 'bg-green-500' : 'bg-saffron-500'}`}>
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${markedToday ? 'bg-green-500' : pendingToday ? 'bg-sky-600' : rejectedToday ? 'bg-rose-500' : 'bg-saffron-500'}`}>
                     {markedToday ? <CheckCircle2 className="h-6 w-6 text-white" /> : <Clock className="h-6 w-6 text-white" />}
                   </span>
-                  <div>
-                    <h2 className="text-base font-bold text-gray-900">{markedToday ? t('todayDone') : t('todayPending')}</h2>
-                    {!markedToday && <p className="text-xs text-gray-600">{t('todayPendingHint')}</p>}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base font-bold text-gray-900">{markedToday ? 'Hajiri approve ho gayi' : pendingToday ? 'Request bhej di gayi' : rejectedToday ? 'Request approve nahi hui' : t('todayPending')}</h2>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                      {markedToday ? 'Aaj ki hajiri final hai aur hisaab mein count hogi.' : pendingToday ? 'Thekedar ki approval ka intezaar hai. Approve hone tak salary mein count nahi hogi.' : rejectedToday ? `Thekedar ka reason: ${todayAttendance?.note || 'Apne thekedar se baat karein.'}` : t('todayPendingHint')}
+                    </p>
                   </div>
                 </div>
-                {!markedToday && myWorker && (
+                {!markedToday && !pendingToday && !rejectedToday && myWorker && (
                   <button
                     type="button"
                     onClick={markMyself}
                     disabled={selfMarking}
-                    className="mt-4 w-full rounded-2xl bg-green-500 px-4 py-3.5 text-base font-bold text-white shadow-md transition active:scale-[0.98] disabled:opacity-60"
+                    className="mt-4 w-full rounded-2xl bg-[#0A6B4B] px-4 py-3.5 text-base font-bold text-white shadow-md transition active:scale-[0.98] disabled:opacity-60"
                   >
-                    {selfMarking ? '...' : t('markMyself')}
+                    {selfMarking ? 'Request bhej rahe hain...' : 'Aaj ki hajiri request bhejo'}
                   </button>
                 )}
+                {rejectedToday && <p className="mt-3 text-xs font-semibold text-rose-700">Aapke paas request ki date/time ka record rahega. Hajiri badalne ke liye thekedar se baat karein.</p>}
                 {selfError && <p className="mt-2 text-sm text-red-600">{t('couldNotSave')}</p>}
               </section>
             )}
@@ -352,7 +327,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                   <DashboardStatCard label={t('myEarnings')} value="" icon={IndianRupee} loading accentColor="bg-amber-50" />
                 </div>
               ) : error ? (
-                <ErrorView message={t('couldNotLoad')} onRetry={loadStats} />
+                <ErrorView message={t('couldNotLoad')} onRetry={loadStats} detail={errorDetail} />
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <DashboardStatCard label={period === 'month' ? t('myDaysMonth') : t('myDaysThisWeek')} value={labourStats?.myDaysThisWeek ?? 0} icon={Calendar} onClick={() => onNavigate('workerDetail')} accentColor="bg-teal-50" />
@@ -377,7 +352,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                           {r.kind === 'attendance' ? t('updAttendance') : r.kind === 'payment' ? `${t('updPaid')} ${money(r.amount)}` : `${t('updAdvance')} ${money(r.amount)}`}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : t('updPending')}` : ''}
+                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : t('updPending')}` : r.kind === 'attendance' ? ` · ${r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? `Rejected${r.note ? `: ${r.note}` : ''}` : 'Pending approval'}` : ''}
                         </p>
                       </div>
                     </div>
@@ -402,27 +377,6 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             </section>
 
             {/* More actions */}
-            <section>
-              <button
-                onClick={() => setShowMore((s) => !s)}
-                className="w-full flex items-center justify-between rounded-3xl bg-white ring-1 ring-navy-100 px-5 py-4 shadow-sm hover:shadow-md transition-all"
-              >
-                <span className="font-semibold text-gray-700">{t('moreActions')}</span>
-                {showMore ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
-              </button>
-              {showMore && (
-                <div className="space-y-4 mt-4">
-                  <ActionButton
-                    icon={CreditCard}
-                    iconBg="bg-navy-500"
-                    iconColor="text-white"
-                    title={t('newRegistrationAction')}
-                    desc={t('newRegistrationDesc')}
-                    onClick={() => onNavigate('registration')}
-                  />
-                </div>
-              )}
-            </section>
           </>
         )}
       </main>
@@ -458,6 +412,20 @@ function ActionButton({
         <p className="mt-0.5 text-sm leading-snug text-gray-500">{desc}</p>
       </div>
       <ChevronRight className="h-5 w-5 shrink-0 text-gray-300" />
+    </button>
+  );
+}
+
+function QuickTile({ icon: Icon, color, label, onClick }: { icon: typeof UserPlus; color: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-sm ring-1 ring-navy-100 transition active:scale-95"
+    >
+      <span className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-md ${color}`}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <span className="text-center text-xs font-bold text-gray-800">{label}</span>
     </button>
   );
 }

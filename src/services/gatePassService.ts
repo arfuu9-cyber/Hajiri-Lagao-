@@ -45,7 +45,7 @@ export async function markBatchAttendance(workerIds: string[]): Promise<number> 
 export async function fetchThekedarWorkers(thekedarId: string) {
   const { data, error } = await supabase
     .from('workers')
-    .select('*')
+    .select('id, name, role, phone, active, thekedar_id')
     .eq('active', true)
     .eq('thekedar_id', thekedarId)
     .order('name', { ascending: true });

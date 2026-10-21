@@ -3,6 +3,7 @@ import { CalendarDays, Search } from 'lucide-react';
 import { LoadingView } from '@/components/LoadingView';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
+import { errText } from '@/utils/errors';
 import { AttendanceRow } from '@/components/AttendanceRow';
 import { LangToggle } from '@/components/PrimaryButton';
 import { useLang } from '@/context/LangContext';
@@ -19,6 +20,7 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
   const [records, setRecords] = useState<AttendanceWithWorker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorDetail, setErrorDetail] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
   const loadHistory = useCallback(async () => {
@@ -27,8 +29,9 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
     try {
       const data = await fetchAttendanceHistory(200);
       setRecords(data);
-    } catch {
+    } catch (err) {
       setError(true);
+      setErrorDetail(errText(err));
     } finally {
       setLoading(false);
     }
@@ -93,7 +96,7 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
         {loading ? (
           <LoadingView message={t('loading')} />
         ) : error ? (
-          <ErrorView message={t('couldNotLoad')} onRetry={loadHistory} />
+          <ErrorView message={t('couldNotLoad')} onRetry={loadHistory} detail={errorDetail} />
         ) : records.length === 0 ? (
           <EmptyState
             icon={CalendarDays}
@@ -110,7 +113,7 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
           <div className="space-y-6">
             {groupedRecords.map(([dateStr, entries]) => (
               <div key={dateStr}>
-                <h2 className="text-sm font-bold text-gray-700 mb-2 sticky top-[120px] bg-gray-50 py-1">
+                <h2 className="text-sm font-bold text-gray-700 mb-2 sticky top-[120px] bg-concrete-50 py-1">
                   {formatDateHeading(dateStr)}
                   <span className="ml-2 text-gray-400 font-normal">
                     ({entries.length} {entries.length === 1 ? t('worker') : t('workersPlural')})
@@ -126,6 +129,8 @@ export function HistoryScreen({ isActive }: HistoryScreenProps) {
                       timeIn={formatTimeInKolkata(record.time_in)}
                       status={record.status}
                       dutyMultiplier={record.duty_multiplier}
+                      approvalStatus={record.approval_status}
+                      rejectionReason={record.rejection_reason}
                     />
                   ))}
                 </div>

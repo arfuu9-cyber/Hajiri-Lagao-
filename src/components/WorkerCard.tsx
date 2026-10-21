@@ -1,4 +1,4 @@
-import { Phone, IndianRupee, HandCoins, Nfc, ChevronRight, MessageCircle } from 'lucide-react';
+import { Phone, IndianRupee, HandCoins, Nfc, ChevronRight, MessageCircle, CheckCircle2, UserX } from 'lucide-react';
 import { useLang } from '@/context/LangContext';
 import type { Worker } from '@/types/database';
 
@@ -27,14 +27,24 @@ export function WorkerCard({ worker, onAssignNfc, onRemoveNfc, onGiveAdvance, on
           <h3 className="truncate text-lg font-bold text-gray-900">{worker.name}</h3>
           <p className="text-sm text-gray-500">{worker.role}</p>
         </div>
-        <span
-          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-            worker.nfc_tag_uid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-          }`}
-        >
-          <Nfc className="h-3.5 w-3.5" />
-          {worker.nfc_tag_uid ? t('cardAssigned') : t('noCard')}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
+              worker.user_id ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {worker.user_id ? <CheckCircle2 className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
+            {worker.user_id ? 'App linked' : 'Invite pending'}
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+              worker.nfc_tag_uid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            <Nfc className="h-3 w-3" />
+            {worker.nfc_tag_uid ? t('cardAssigned') : t('noCard')}
+          </span>
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2 text-sm text-gray-700">

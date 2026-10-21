@@ -8,6 +8,8 @@ import { fetchWorkers } from '@/services/workerService';
 import { supabase } from '@/services/supabase';
 import { playBeep } from '@/utils/sound';
 import type { Worker } from '@/types/database';
+import QRCode from '@/utils/qrcode-vendor';
+import QRErrorCorrectLevel from '@/utils/qrcode-vendor/QRErrorCorrectLevel';
 
 interface GatePassScreenProps {
   onBack: () => void;
@@ -90,7 +92,11 @@ function ThekedarView({ t }: { t: (key: string) => string }) {
 
   useEffect(() => {
     if (thekedarId && canvasRef.current) {
-      drawQRCode(canvasRef.current, thekedarId);
+      try {
+        drawQRCode(canvasRef.current, thekedarId);
+      } catch {
+        setShareStatus('QR code generate nahi hua. ID manually share karein.');
+      }
     }
   }, [thekedarId]);
 
@@ -260,6 +266,8 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scanningActiveRef = useRef(false);
+  const detectionBusyRef = useRef(false);
 
   const beep = (type: 'success' | 'error') => {
     if (soundOn) playBeep(type);
@@ -267,34 +275,69 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
 
   const startScan = async () => {
     setError(null);
+    const BrowserBarcodeDetector = (window as Window & {
+      BarcodeDetector?: new (options?: { formats: string[] }) => {
+        detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>>;
+      };
+    }).BarcodeDetector;
+
+    if (!BrowserBarcodeDetector) {
+      setError('Is browser mein built-in QR scan support nahi hai. Neeche thekedar ID manually enter karein.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera access available nahi hai. HTTPS par app kholen ya ID manually enter karein.');
+      return;
+    }
+
     setScanning(true);
+    scanningActiveRef.current = true;
+    detectionBusyRef.current = false;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      scanLoop();
-    } catch {
-      setError(t('cameraError'));
-      setScanning(false);
+      const video = videoRef.current;
+      if (!video) throw new Error('Camera preview initialize nahi ho paya.');
+      video.srcObject = stream;
+      await video.play();
+
+      const detector = new BrowserBarcodeDetector({ formats: ['qr_code'] });
+      const scanFrame = async () => {
+        if (!scanningActiveRef.current || !videoRef.current) return;
+        if (!detectionBusyRef.current && videoRef.current.readyState >= 2) {
+          detectionBusyRef.current = true;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const value = codes.find((code) => typeof code.rawValue === 'string' && code.rawValue.trim())?.rawValue?.trim();
+            if (value) {
+              stopScan();
+              await handleScan(value);
+              return;
+            }
+          } catch {
+            // A frame may fail decoding while the camera is adjusting; continue scanning.
+          } finally {
+            detectionBusyRef.current = false;
+          }
+        }
+        if (scanningActiveRef.current) requestAnimationFrame(() => { void scanFrame(); });
+      };
+      requestAnimationFrame(() => { void scanFrame(); });
+    } catch (scanError) {
+      scanningActiveRef.current = false;
+      stopScan();
+      setError(scanError instanceof Error ? scanError.message : t('cameraError'));
     }
   };
 
   const stopScan = () => {
+    scanningActiveRef.current = false;
     setScanning(false);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-  };
-
-  const scanLoop = () => {
-    if (!scanning || !videoRef.current) return;
-    requestAnimationFrame(scanLoop);
+    if (videoRef.current) videoRef.current.srcObject = null;
   };
 
   const handleScan = async (id: string) => {
@@ -303,7 +346,7 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
     try {
       const { data, error } = await supabase
         .from('workers')
-        .select('*')
+        .select('id, name, phone, role, thekedar_id, active, created_at')
         .eq('id', id)
         .maybeSingle();
 
@@ -443,10 +486,7 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
                     </div>
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-3.5 w-3.5 text-gray-400" />
-                      <p className="text-xs text-gray-500">
-                        {w.role}
-                        {w.aadhaar_number ? ` · Aadhaar: ****${w.aadhaar_number.slice(-4)}` : ''}
-                      </p>
+                      <p className="text-xs text-gray-500">{w.role}</p>
                     </div>
                   </div>
                 </div>
@@ -553,41 +593,32 @@ function GatekeeperView({ t }: { t: (key: string) => string }) {
 }
 
 function drawQRCode(canvas: HTMLCanvasElement, text: string) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!text.trim()) throw new Error('QR code data is empty');
+  const qr = new QRCode(0, QRErrorCorrectLevel.M);
+  qr.addData(text.trim());
+  qr.make();
 
-  const size = canvas.width;
-  ctx.fillStyle = '#fff';
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available');
+  const size = canvas.width || 200;
+  canvas.width = size;
+  canvas.height = size;
+  ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, size, size);
 
-  const modules = 21;
-  const cellSize = size / modules;
-
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) {
-    hash = ((hash << 5) - hash) + text.charCodeAt(i);
-    hash |= 0;
-  }
-
-  ctx.fillStyle = '#000';
-  for (let y = 0; y < modules; y++) {
-    for (let x = 0; x < modules; x++) {
-      const isCorner = (x < 7 && y < 7) || (x >= modules - 7 && y < 7) || (x < 7 && y >= modules - 7);
-      if (isCorner) {
-        if (x === 0 || y === 0 || x === 6 || y === 6 ||
-            (x < 7 && y < 7 && (x === 0 || x === 6 || y === 0 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4)))) {
-          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-        } else if (x >= modules - 7 && (x === modules - 7 || x === modules - 1 || y === 0 || y === 6 || (x >= modules - 5 && x <= modules - 3 && y >= 2 && y <= 4))) {
-          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-        } else if (y >= modules - 7 && (y === modules - 7 || y === modules - 1 || x === 0 || x === 6 || (y >= modules - 5 && y <= modules - 3 && x >= 2 && x <= 4))) {
-          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-        }
-        continue;
-      }
-
-      const bit = (hash >> ((y * modules + x) % 31)) & 1;
-      if (bit) {
-        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+  const moduleCount = qr.getModuleCount();
+  const quietZone = 4;
+  const moduleSize = size / (moduleCount + quietZone * 2);
+  const offset = quietZone * moduleSize;
+  ctx.fillStyle = '#111827';
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (qr.isDark(row, col)) {
+        const left = Math.round(offset + col * moduleSize);
+        const top = Math.round(offset + row * moduleSize);
+        const right = Math.round(offset + (col + 1) * moduleSize);
+        const bottom = Math.round(offset + (row + 1) * moduleSize);
+        ctx.fillRect(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
       }
     }
   }

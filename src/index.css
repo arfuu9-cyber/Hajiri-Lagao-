@@ -2,102 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
-  min-height: 100%;
+:root {
+  color-scheme: light;
+  --hl-green: #0A6B4B;
+  --hl-green-dark: #07543C;
+  --hl-green-soft: #E5F5EC;
+  --hl-orange: #F59E0B;
+  --hl-ink: #14213D;
+  --hl-muted: #64748B;
+  --hl-page: #F7F9F7;
+  --hl-line: #DDE9E1;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+html, body, #root { min-height: 100%; }
+html { -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0;
-  background: #f2f6ff;
-  color: #111827;
+  background: var(--hl-page);
+  color: var(--hl-ink);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   font-size: 16px;
   line-height: 1.5;
   font-family: 'Noto Sans', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+button, input, select, textarea { font: inherit; }
+button { touch-action: manipulation; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid rgba(245, 158, 11, .75);
+  outline-offset: 2px;
+}
+::selection { background: #BDE8D0; color: #14213D; }
 
+/* Brand panel: strong green surface with a quiet, construction-inspired ring. */
 .construction-panel {
-  background-image:
-    linear-gradient(135deg, rgba(6, 23, 54, 0.98), rgba(8, 32, 78, 0.94)),
-    repeating-linear-gradient(135deg, transparent 0, transparent 12px, rgba(249, 156, 53, 0.08) 12px, rgba(249, 156, 53, 0.08) 24px);
+  background-color: var(--hl-green);
+  background-image: radial-gradient(circle at 100% 0%, rgba(245, 158, 11, .18) 0 10%, transparent 10.2% 100%);
 }
 
-/* === Splash intro animation === */
-@keyframes splashLogoIn {
-  0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
-  50% { transform: scale(1.15) rotate(5deg); opacity: 1; }
-  70% { transform: scale(0.95) rotate(-2deg); }
-  100% { transform: scale(1) rotate(0deg); opacity: 1; }
-}
-
-@keyframes splashFadeUp {
-  0% { transform: translateY(20px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes splashRing {
-  0% { transform: scale(0.8); opacity: 0.6; }
-  100% { transform: scale(2.2); opacity: 0; }
-}
-
-@keyframes splashBar {
-  0% { width: 0%; }
-  100% { width: 100%; }
-}
-
-@keyframes fadeOut {
-  0% { opacity: 1; }
-  100% { opacity: 0; pointer-events: none; }
-}
-
-.animate-splash-logo { animation: splashLogoIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-.animate-splash-title { animation: splashFadeUp 0.6s ease-out 0.4s forwards; opacity: 0; }
-.animate-splash-subtitle { animation: splashFadeUp 0.6s ease-out 0.6s forwards; opacity: 0; }
+/* Animation is subtle; respect accessibility settings. */
+@keyframes splashLogoIn { 0% { transform: scale(.92); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes splashFadeUp { 0% { transform: translateY(10px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes splashRing { 0% { transform: scale(.8); opacity: .45; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes splashBar { 0% { width: 0%; } 100% { width: 100%; } }
+@keyframes fadeOut { 0% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
+@keyframes slideUp { 0% { transform: translateY(8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes slideInLeft { 0% { transform: translateX(-8px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+@keyframes popIn { 0% { transform: scale(.97); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes navBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .2); } 50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); } }
+.animate-splash-logo { animation: splashLogoIn .35s ease-out forwards; }
+.animate-splash-title { animation: splashFadeUp .35s ease-out .08s forwards; opacity: 0; }
+.animate-splash-subtitle { animation: splashFadeUp .35s ease-out .14s forwards; opacity: 0; }
 .animate-splash-ring { animation: splashRing 1.5s ease-out infinite; }
 .animate-splash-bar { animation: splashBar 1.8s ease-in forwards; }
-.animate-fade-out { animation: fadeOut 0.4s ease-out forwards; }
+.animate-fade-out { animation: fadeOut .25s ease-out forwards; }
+.animate-slide-up { animation: slideUp .25s ease-out forwards; }
+.animate-slide-in-left { animation: slideInLeft .25s ease-out forwards; }
+.animate-pop-in { animation: popIn .2s ease-out forwards; }
+.animate-nav-bounce { animation: navBounce .25s ease-out; }
+.animate-shimmer { background: linear-gradient(90deg, #edf3ef 25%, #dfeae3 50%, #edf3ef 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+.animate-pulse-glow { animation: pulseGlow 2.4s ease-in-out infinite; }
 
-/* === Card slide-in animations === */
-@keyframes slideUp {
-  0% { transform: translateY(16px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
-}
+/* Shared mobile-first surface styles; existing Tailwind screens remain supported. */
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+.surface-card { border: 1px solid var(--hl-line); border-radius: 1.25rem; background: #fff; box-shadow: 0 3px 14px rgba(20, 33, 61, .045); }
+.muted-text { color: var(--hl-muted); }
 
-@keyframes slideInLeft {
-  0% { transform: translateX(-16px); opacity: 0; }
-  100% { transform: translateX(0); opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
-
-@keyframes popIn {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
-.animate-slide-in-left { animation: slideInLeft 0.35s ease-out forwards; }
-.animate-pop-in { animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-
-/* === Nav bar active bounce === */
-@keyframes navBounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
-.animate-nav-bounce { animation: navBounce 0.4s ease-out; }
-
-/* === Shimmer for loading === */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.animate-shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-/* === Pulse glow for important buttons === */
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(247, 127, 12, 0.3); }
-  50% { box-shadow: 0 0 0 8px rgba(247, 127, 12, 0); }
-}
-.animate-pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }

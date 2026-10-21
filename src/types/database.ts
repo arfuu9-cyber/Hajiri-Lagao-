@@ -49,6 +49,12 @@ export interface Attendance {
   latitude: number | null;
   longitude: number | null;
   photo_url: string | null;
+  approval_status: 'pending' | 'approved' | 'rejected';
+  marked_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  updated_at?: string;
 }
 
 export interface AttendanceWithWorker extends Attendance {

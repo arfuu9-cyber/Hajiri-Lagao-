@@ -9,14 +9,15 @@ import { createWorker, uploadWorkerPhoto } from '@/services/workerService';
 interface AddWorkerScreenProps {
   onBack: () => void;
   onSaved: () => void;
+  initialRole?: string;
 }
 
-export function AddWorkerScreen({ onBack, onSaved }: AddWorkerScreenProps) {
+export function AddWorkerScreen({ onBack, onSaved, initialRole = '' }: AddWorkerScreenProps) {
   const { t } = useLang();
   const { profile, myWorker } = useAuth();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState(initialRole);
   const [customRole, setCustomRole] = useState('');
   const [useCustomRole, setUseCustomRole] = useState(false);
   const [dailyWage, setDailyWage] = useState('');

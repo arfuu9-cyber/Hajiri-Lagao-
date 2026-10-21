@@ -50,6 +50,8 @@ const dict: Dict = {
   constructionTagline: { en: 'Haziri, hisaab aur team — site par sab ek jagah', hi: 'Haziri, hisaab aur team — site par sab ek jagah' },
   presentToday: { en: 'Aaj Maujood', hi: 'Aaj Maujood' },
   absentToday: { en: 'Aaj Gair-Hazir', hi: 'Aaj Anupasthit' },
+  attendancePending: { en: 'Hajiri Baaki', hi: 'Hajiri Baaki' },
+  onLeaveToday: { en: 'Chhutti', hi: 'Chhutti' },
   newWorkersToday: { en: 'Aaj Naye Mazdoor', hi: 'Aaj Naye Worker' },
   weeklyPayout: { en: 'Is hafte ka bhugtaan', hi: 'Is Hafte ka Bhugtaan' },
   attendanceRate: { en: 'Haziri Rate', hi: 'Upasthiti Dar' },
@@ -92,7 +94,7 @@ const dict: Dict = {
   replaceCard: { en: 'Card Badlo', hi: 'Card Badle' },
   giveAdvance: { en: 'Advance', hi: 'Advance' },
   dailyWage: { en: 'dainik mazdoori', hi: 'Dainik Mazdoori' },
-  viewDetails: { en: 'Vivaraan', hi: 'Vivaraan' },
+  viewDetails: { en: 'Khata dekho', hi: 'Khata Dekhen' },
 
   // Advance modal
   giveAdvanceTitle: { en: 'Advance Do', hi: 'Advance De' },
@@ -340,6 +342,12 @@ const dict: Dict = {
   inviteInvalid: { en: 'Code galat hai ya pehle hi use ho chuka hai', hi: 'Code Galat Hai ya Pehle Hi Use Ho Chuka Hai' },
   inviteShareTitle: { en: 'Mazdoor ko ye code bhejo', hi: 'Worker ko ye Code Bhejen' },
   shareInvite: { en: 'Code bhejo', hi: 'Code Bhejen' },
+  tileNewWorker: { en: 'Naya mazdoor', hi: 'Naya Worker' },
+  tileGiveAdvance: { en: 'Kharchi do', hi: 'Kharchi Den' },
+  tileHisaab: { en: 'Hisaab', hi: 'Hisaab' },
+  tileNfc: { en: 'NFC haziri', hi: 'NFC Haziri' },
+  tileRegister: { en: 'Aadhaar register', hi: 'Aadhaar Register' },
+  tileAlerts: { en: 'Alerts', hi: 'Alerts' },
   pickRoleFirst: { en: 'Pehle apni bhumika chuno.', hi: 'Pehle Apni Bhumika Chuno.' },
   selectPersonRole: { en: 'Ye kaun hai? Bhumika chuno', hi: 'Ye Kaun Hai? Bhumika Chuno' },
   viewAllWorkers: { en: 'Saare mazdoor dekho', hi: 'Sabhi Worker Dekho' },
@@ -398,8 +406,8 @@ const dict: Dict = {
   myAdvances: { en: 'Mere Advance', hi: 'Mere Advance' },
   myAttendance: { en: 'Meri Haziri Lagao', hi: 'Meri Haziri Lagao' },
   myAttendanceDesc: { en: 'Apna card tap karke haziri lagao', hi: 'Apna Card Tap karke Haziri Lagao' },
-  myDetails: { en: 'Mera Vivaraan', hi: 'Mera Vivaraan' },
-  myDetailsDesc: { en: 'Apni profile, haziri calendar aur kamai dekho', hi: 'Apni Profile, Haziri Calendar aur Kamai Dekho' },
+  myDetails: { en: 'Mera Khata', hi: 'Mera Khata' },
+  myDetailsDesc: { en: 'Haziri, kharchi aur bhugtaan ka poora hisaab', hi: 'Haziri, Kharchi aur Bhugtaan ka Poora Hisaab' },
   activeWorkers: { en: 'Sakriya Mazdoor', hi: 'Sakriya Worker' },
 
   // Splash
