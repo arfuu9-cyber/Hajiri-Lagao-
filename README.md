@@ -49,36 +49,19 @@ Mobile-first construction workforce app for thekedar and mazdoor teams. The code
 See `docs/PRODUCT_AND_DESIGN_DECISIONS.md` for which features to keep, simplify, defer or remove.
 
 
-## Verified team connection and review queues
+## Attendance request and anti-fraud approval workflow
 
-- A new worker account is not linked by name or phone alone. The worker scans/enters their individual code from **Team & Invite**; this creates a pending request.
-- Only the thekedar assigned to that exact worker record can approve/reject the connection. A code by itself never makes the connection active.
-- Thekedar can share a standards-compliant QR or copy a six-character code for a worker. Camera scanning uses `BarcodeDetector` when supported; manual entry is the fallback.
-- A linked worker can request today's attendance. It stays pending until the linked thekedar approves it; payroll counts only approved records.
-- After attendance or kharchi is approved/rejected, the request is removed from the pending queue immediately. Kharchi review is a database transaction, avoiding duplicate advances on retry. The advance stays unverified until worker OTP confirmation.
-- Queue-loading failures are shown as errors rather than an empty/zero-pending state.
-- Attendance decisions are recorded in the audit log; client-side hard deletion remains disabled by the attendance workflow migration.
-- The Workers screen keeps the floating **Add Labor** shortcut for Helper/Karigar. The **Team & Invite** screen is a separate route available from the home dashboard.
+The updated app supports linked contractor/worker attendance review:
 
-### Required Supabase database setup
+- The contractor can directly mark their linked crew's final attendance.
+- A linked worker can request only their own full-day attendance for the current India date. The request stays **pending** until the linked contractor approves it.
+- The contractor can approve full-day or half-day attendance, or reject with a reason. Rejected requests remain visible and can be approved later after re-checking.
+- Payroll and wage totals query only `approval_status = 'approved'`.
+- `attendance_audit_log` records who created/reviewed attendance, the old/new approval state, and duty multiplier. Client-side hard deletion of attendance is disabled by the migration.
+- The Workers screen has a floating, expandable **Add Labor** action with shortcuts for Helper and Mason/Karigar. The selected role can still be changed on the form.
 
-Before using these flows in production:
+### Required database migration
 
-1. Apply `supabase/migrations/20261022130000_attendance_approval_workflow.sql` if not already successfully applied. It creates `attendance.approval_status`, approval guard/RLS policies and audit logging.
-2. Apply `supabase/migrations/20261023110000_verified_connections_and_safe_request_review.sql` after the existing base/security and invite-code migrations. It installs connection request RPCs and atomic kharchi review. It also ensures `advance_requests` exists/has the needed review fields.
-3. Read `docs/TEAM_CONNECTIONS_AND_REQUEST_QUEUE.md` and carry out the multi-account test plan before deploying to the live app.
+Before using these flows against Supabase, apply the new migration `supabase/migrations/20261022130000_attendance_approval_workflow.sql` after the existing migrations. It adds columns, approval policies, audit logging, and role/team checks. Apply it in a test Supabase project first, then test with two separate accounts (one thekedar and one worker linked by the invite code).
 
-If the app continues reporting `approval_status does not exist`, verify that Vercel's `VITE_SUPABASE_URL` matches the exact Supabase project where SQL was run. Frontend code cannot add a live database column by itself.
-
-
-## Add Labor and verified connection UX
-
-- The thekedar home screen has a fixed bottom-right **Add Labor** toggle, with Helper, Mason, and custom-role shortcuts.
-- `Team & Invite` shows a per-worker invite code and QR. The worker submits a request, and only the owner thekedar can approve it.
-- The approval screen displays the worker phone saved on the contractor record and the requesting account phone. A mismatch prompts a manual-identity-check warning; self-entered numbers are not SMS-verified.
-- Approved/rejected attendance and kharchi requests are removed immediately from pending review cards. Their database history remains available.
-
-
-## Mazdoor registration invite code
-
-Apply `supabase/migrations/20261023120000_atomic_labour_registration_with_invite.sql` only after the base/security, invite-code, attendance-approval and verified-connection migrations. Registration validates the worker-specific invite code and creates a pending request atomically; the Thekedar must approve it before account linking.
+A worker request must not be treated as final pay until approved. The database migration is a required part of this feature; updating frontend code alone does not secure old backend policies.

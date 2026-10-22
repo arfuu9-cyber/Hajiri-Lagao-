@@ -4,9 +4,8 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { validateName, validatePhone } from '@/utils/validation';
-import { createWorker } from '@/services/workerService';
-import { registerLabourWithInviteCode } from '@/services/teamConnectionService';
-import type { UserRole } from '@/types/database';
+import { createWorker, claimWorkerByCode } from '@/services/workerService';
+import type { UserRole, Worker } from '@/types/database';
 
 interface RegistrationScreenProps {
   onBack: () => void;
@@ -22,52 +21,31 @@ const ROLES: { key: UserRole; icon: typeof HardHat; color: string; bg: string }[
 
 export function RegistrationScreen({ onBack, onSaved, existingProfile = false }: RegistrationScreenProps) {
   const { t } = useLang();
-  const { saveProfile, user, profile, myWorker, reloadProfile } = useAuth();
+  const { saveProfile, user, profile, myWorker, reloadMyWorker } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [thekedarCode, setThekedarCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string; thekedarCode?: string }>({});
-
-  const withTimeout = async <T,>(operation: Promise<T>, timeoutMs = 20000): Promise<T> => {
-    let timer: number | undefined;
-    try {
-      return await Promise.race([
-        operation,
-        new Promise<T>((_, reject) => {
-          timer = window.setTimeout(
-            () => reject(new Error('Server se response nahi mila. Internet check karke dobara try karein.')),
-            timeoutMs,
-          );
-        }),
-      ]);
-    } finally {
-      if (timer !== undefined) window.clearTimeout(timer);
-    }
-  };
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({});
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (loading) return;
     setError(null);
-    setRoleError(null);
 
     const nameResult = validateName(name);
     const phoneResult = validatePhone(phone);
-    const normalizedCode = thekedarCode.trim().toUpperCase();
 
     const newErrors: typeof fieldErrors = {};
     if (!nameResult.valid) newErrors.name = nameResult.error;
     if (!phoneResult.valid) newErrors.phone = phoneResult.error;
-    if (!existingProfile && role === 'labour' && !/^[A-Z0-9]{6}$/.test(normalizedCode)) {
-      newErrors.thekedarCode = 'Thekedar ka poora 6-character code daalo (letters/numbers).';
-    }
 
     setFieldErrors(newErrors);
-    if (!role) setRoleError(t('pickRoleFirst'));
+    if (!role) {
+      setRoleError(t('pickRoleFirst'));
+    }
     if (!role || Object.keys(newErrors).length > 0) {
       if (!role) window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -75,41 +53,33 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
 
     setLoading(true);
     try {
-      if (!existingProfile && role === 'labour') {
-        // The database validates the exact invite-code -> worker -> thekedar mapping
-        // and writes the profile + pending request atomically (no half-saved profile).
-        await withTimeout(registerLabourWithInviteCode({
-          displayName: name,
-          phone,
-          code: normalizedCode,
-        }));
-      } else {
-        if (!existingProfile) {
-          await withTimeout(saveProfile(role, name, phone));
-        }
-
-        const roleName = role === 'thekedar' ? 'Thekedar' : role === 'gatekeeper' ? 'Gatekeeper' : 'Labour';
-        // Existing-profile flow creates a worker row owned by the current thekedar.
-        // New thekedar/gatekeeper accounts need their own worker row after profile setup.
-        if (existingProfile || role !== 'labour') {
-          await withTimeout(createWorker({
-            name: name.trim(),
-            phone: phone.trim(),
-            role: roleName,
-            daily_wage: 0,
-            user_id: existingProfile ? null : user?.id ?? null,
-            thekedar_id:
-              existingProfile && profile?.role === 'thekedar' && role === 'labour' ? myWorker?.id ?? null : null,
-          }));
-        }
+      if (!existingProfile) {
+        await saveProfile(role, name);
       }
 
-      await withTimeout(reloadProfile());
+      const roleName = role === 'thekedar' ? 'Thekedar' : role === 'gatekeeper' ? 'Gatekeeper' : 'Labour';
+      let worker: Worker | null = null;
+      if (!existingProfile && role === 'labour' && inviteCode.trim()) {
+        worker = await claimWorkerByCode(inviteCode);
+        if (!worker) throw new Error(t('inviteInvalid'));
+      }
+      if (!worker) {
+        worker = await createWorker({
+          name: name.trim(),
+          phone: phone.trim(),
+          role: roleName,
+          daily_wage: 0,
+          user_id: existingProfile ? null : user?.id ?? null,
+          thekedar_id:
+            existingProfile && profile?.role === 'thekedar' && role === 'labour' ? myWorker?.id ?? null : null,
+        });
+      }
+
+      await reloadMyWorker();
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('couldNotSave'));
     } finally {
-      // Always unlock the submit button after validation, success, server errors or timeout.
       setLoading(false);
     }
   };
@@ -175,44 +145,17 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
         </div>
 
         {!existingProfile && role === 'labour' && (
-          <div className="space-y-2">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-bold text-emerald-900">Thekedar se verified connection</p>
-              <p className="mt-1 text-xs leading-relaxed text-emerald-800">Apne Thekedar ke worker profile par diya gaya 6-character invite code yahan daalein. Request usi Thekedar ko jayegi; approve hone ke baad hi hajiri aur kharchi link hongi.</p>
-            </div>
-            <div>
-              <label htmlFor="thekedar-code" className="mb-2 block text-sm font-semibold text-gray-700">
-                Thekedar ka code (6-character invite code) <span className="text-red-600">*</span>
-              </label>
-              <div className="relative">
-                <HardHat className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input
-                  id="thekedar-code"
-                  name="thekedarCode"
-                  type="text"
-                  value={thekedarCode}
-                  onChange={(event) => {
-                    const cleaned = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-                    setThekedarCode(cleaned);
-                    if (fieldErrors.thekedarCode) setFieldErrors((current) => ({ ...current, thekedarCode: undefined }));
-                  }}
-                  placeholder="Example: A1B2C3"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  maxLength={6}
-                  minLength={6}
-                  pattern="[A-Za-z0-9]{6}"
-                  required={!existingProfile && role === 'labour'}
-                  aria-invalid={Boolean(fieldErrors.thekedarCode)}
-                  aria-describedby={fieldErrors.thekedarCode ? 'thekedar-code-error' : 'thekedar-code-help'}
-                  className="w-full rounded-xl border border-emerald-300 bg-white py-3.5 pl-11 pr-4 text-base font-bold uppercase tracking-[0.25em] text-gray-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-gray-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <p id="thekedar-code-help" className="mt-1.5 text-xs text-gray-500">Code letters ya numbers ka ho sakta hai. Spaces automatically remove ho jayengi.</p>
-              {fieldErrors.thekedarCode && <p id="thekedar-code-error" role="alert" className="mt-1.5 text-sm text-red-600">{fieldErrors.thekedarCode}</p>}
-            </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">{t('inviteLabel')}</label>
+            <p className="text-xs text-gray-500 mb-2">{t('inviteHint')}</p>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              maxLength={6}
+              placeholder="ABC123"
+              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-base font-bold uppercase tracking-[0.3em] focus:border-navy-500 focus:outline-none"
+            />
           </div>
         )}
 
@@ -222,9 +165,8 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
             <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              required
               value={name}
-              onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((current) => ({ ...current, name: undefined })); }}
+              onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Ramesh Kumar"
               className="w-full rounded-xl border border-gray-300 pl-11 pr-4 py-3.5 text-base text-gray-900 placeholder-gray-400 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500"
             />
@@ -238,9 +180,8 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="tel"
-              required
               value={phone}
-              onChange={(e) => { setPhone(e.target.value); if (fieldErrors.phone) setFieldErrors((current) => ({ ...current, phone: undefined })); }}
+              onChange={(e) => setPhone(e.target.value)}
               placeholder="e.g. 98765 43210"
               className="w-full rounded-xl border border-gray-300 pl-11 pr-4 py-3.5 text-base text-gray-900 placeholder-gray-400 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500"
             />
