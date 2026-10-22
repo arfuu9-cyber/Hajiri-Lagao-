@@ -77,3 +77,8 @@ If the app continues reporting `approval_status does not exist`, verify that Ver
 - `Team & Invite` shows a per-worker invite code and QR. The worker submits a request, and only the owner thekedar can approve it.
 - The approval screen displays the worker phone saved on the contractor record and the requesting account phone. A mismatch prompts a manual-identity-check warning; self-entered numbers are not SMS-verified.
 - Approved/rejected attendance and kharchi requests are removed immediately from pending review cards. Their database history remains available.
+
+
+## Mazdoor registration invite code
+
+Apply `supabase/migrations/20261023120000_atomic_labour_registration_with_invite.sql` only after the base/security, invite-code, attendance-approval and verified-connection migrations. Registration validates the worker-specific invite code and creates a pending request atomically; the Thekedar must approve it before account linking.

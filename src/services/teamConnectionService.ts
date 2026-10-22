@@ -26,9 +26,40 @@ export interface ConnectionRequestResult {
   status: ConnectionStatus;
 }
 
+export interface RegisterLabourWithInviteCodeInput {
+  displayName: string;
+  phone: string;
+  code: string;
+}
+
 function firstRow<T>(value: unknown): T | null {
   if (Array.isArray(value)) return (value[0] as T | undefined) ?? null;
   return value ? (value as T) : null;
+}
+
+/**
+ * Atomically creates/updates the signed-in user's labour profile and requests
+ * a connection to the exact worker/thekedar record matched by the invite code.
+ * The database RPC deliberately leaves the worker unlinked until thekedar approves.
+ */
+export async function registerLabourWithInviteCode(
+  input: RegisterLabourWithInviteCodeInput,
+): Promise<ConnectionRequestResult> {
+  const normalized = input.code.trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(normalized)) {
+    throw new Error('Thekedar ka valid 6-character invite code daalo.');
+  }
+
+  const { data, error } = await supabase.rpc('register_labour_with_invite_code', {
+    p_display_name: input.displayName.trim(),
+    p_phone: input.phone.trim(),
+    p_code: normalized,
+  });
+  if (error) throw new Error(error.message || 'Registration save nahi ho saki. Dobara try karein.');
+
+  const row = firstRow<ConnectionRequestResult>(data);
+  if (!row) throw new Error('Registration/connection request confirm nahi hui. Dobara try karein.');
+  return row;
 }
 
 /** A code never links accounts by itself: it only creates a request for contractor approval. */
