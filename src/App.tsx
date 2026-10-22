@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Home as HomeIcon, History as HistoryIcon, Users as UsersIcon, WalletCards, Settings as SettingsIcon } from 'lucide-react';
-import { supabase } from '@/services/supabase';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { LangProvider } from '@/context/LangContext';
 import { LoginScreen } from '@/screens/LoginScreen';
@@ -15,6 +14,7 @@ import { AlertsScreen } from '@/screens/AlertsScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { RegistrationScreen } from '@/screens/RegistrationScreen';
 import { GatePassScreen } from '@/screens/GatePassScreen';
+import { TeamConnectionsScreen } from '@/screens/TeamConnectionsScreen';
 import { LoadingView } from '@/components/LoadingView';
 import { SplashScreen } from '@/components/SplashScreen';
 import { useLang } from '@/context/LangContext';
@@ -30,8 +30,9 @@ type StackScreen =
   | 'settings'
   | 'registration'
   | 'gatePassThekedar'
-  | 'gatePassScanner';
-type QuickAction = 'nfcAttendance' | 'addWorker' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers';
+  | 'gatePassScanner'
+  | 'teamConnections';
+type QuickAction = 'nfcAttendance' | 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections';
 
 function MainApp() {
   const { session, profile, myWorker, loading } = useAuth();
@@ -103,12 +104,19 @@ function MainApp() {
     return <GatePassScreen onBack={returnToTabs} mode="gatekeeper" />;
   }
 
+  if (stackScreen === 'teamConnections') {
+    return <TeamConnectionsScreen onBack={returnToTabs} />;
+  }
+
   const handleNavigate = async (action: QuickAction) => {
     if (action === 'nfcAttendance') setStackScreen('nfcAttendance');
     else if (action === 'addWorker') { setInitialWorkerRole(''); setStackScreen('addWorker'); }
+    else if (action === 'addHelper') { setInitialWorkerRole('Helper'); setStackScreen('addWorker'); }
+    else if (action === 'addKarigar') { setInitialWorkerRole('Mason'); setStackScreen('addWorker'); }
     else if (action === 'registration') setStackScreen('registration');
     else if (action === 'gatePass') setStackScreen('gatePassThekedar');
     else if (action === 'gatePassScanner') setStackScreen('gatePassScanner');
+    else if (action === 'teamConnections') setStackScreen('teamConnections');
     else if (action === 'payroll') {
       setActiveTab('payroll');
       setRefreshKey((k) => k + 1);
@@ -122,20 +130,8 @@ function MainApp() {
         setStackScreen('workerDetail');
         return;
       }
-      const workerName = profile?.display_name?.trim();
-      if (workerName) {
-        const { data } = await supabase
-          .from('workers')
-          .select('id')
-          .ilike('name', workerName)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data) {
-          setSelectedWorkerId(data.id);
-          setStackScreen('workerDetail');
-        }
-      }
+      // Never search a different worker's data by name when the account is not linked.
+      if (profile?.role === 'labour') setStackScreen('teamConnections');
     }
   };
 

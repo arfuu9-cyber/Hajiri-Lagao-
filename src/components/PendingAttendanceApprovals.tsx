@@ -13,7 +13,7 @@ interface PendingAttendanceApprovalsProps {
   onChanged?: () => void;
 }
 
-/** A thekedar-only review queue. The backend RLS policy is the actual security boundary. */
+/** Thekedar-only queue. Reviewed requests are removed immediately; the database remains authoritative. */
 export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceApprovalsProps) {
   const [rows, setRows] = useState<AttendanceApprovalItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,8 +21,8 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     setError('');
     try {
       setRows(await fetchPendingAttendanceApprovals());
@@ -35,14 +35,7 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
 
   useEffect(() => {
     void load();
-    // Workers can submit a request from a different phone, so refresh the queue periodically.
-    const refreshId = window.setInterval(async () => {
-      try {
-        setRows(await fetchPendingAttendanceApprovals());
-      } catch {
-        // Keep the last known queue visible if the network temporarily drops.
-      }
-    }, 20000);
+    const refreshId = window.setInterval(() => { void load(false); }, 20000);
     return () => window.clearInterval(refreshId);
   }, [load]);
 
@@ -59,13 +52,15 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
           return;
         }
         await rejectAttendanceRequest(row.id, reason);
-        setMessage(`${row.worker.name} ki request reject ho gayi; reason record ho gaya.`);
+        setMessage(`${row.worker.name} ki request reject ho gayi aur review queue se hata di gayi.`);
       } else {
         await approveAttendanceRequest(row.id, multiplier);
-        setMessage(`${row.worker.name} ki hajiri approve ho gayi.`);
+        setMessage(`${row.worker.name} ki hajiri approve ho gayi aur review queue se hata di gayi.`);
       }
-      await load();
+      // Optimistic removal means this card never stays visible while a refresh is in progress.
+      setRows((current) => current.filter((item) => item.id !== row.id));
       onChanged?.();
+      await load(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request update nahi hui.');
     } finally {
@@ -74,6 +69,7 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
   };
 
   const today = getKolkataDateString();
+  const pendingCount = rows.filter((row) => row.approval_status === 'pending').length;
 
   return (
     <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-amber-200">
@@ -84,7 +80,7 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base font-extrabold text-slate-900">Hajiri approval</h2>
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">{rows.filter((row) => row.approval_status === 'pending').length} pending</span>
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">{error ? 'Check error' : `${pendingCount} pending`}</span>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
             Mazdoor ki request final hajiri ya salary mein tabhi count hogi jab aap approve karoge.
@@ -96,7 +92,7 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
       </div>
 
       {loading && <p className="mt-4 text-sm text-slate-500">Requests load ho rahi hain...</p>}
-      {!loading && rows.length === 0 && (
+      {!loading && !error && rows.length === 0 && (
         <div className="mt-4 flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
           <Check className="h-5 w-5" /> Abhi koi pending request nahi hai.
         </div>
@@ -106,7 +102,6 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
         <div className="mt-4 space-y-3">
           {rows.map((row) => {
             const isToday = row.date === today;
-            const wasRejected = row.approval_status === 'rejected';
             const busy = busyId === row.id;
             return (
               <article key={row.id} className="rounded-2xl border border-slate-200 p-4">
@@ -121,28 +116,27 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
                       <Clock3 className="h-3.5 w-3.5" /> {row.date} · {new Date(row.time_in).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
                       {!isToday && <span className="ml-1 rounded-full bg-orange-100 px-2 py-0.5 font-bold text-orange-800">Purani request</span>}
                     </p>
-                    {wasRejected && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">Pehle reject hui thi: {row.rejection_reason || 'Reason nahi diya gaya'}. Dobara verify karke approve kar sakte ho.</p>}
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button type="button" disabled={busyId !== null} onClick={() => void review(row, 1)} className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-extrabold text-white disabled:opacity-50">
-                    <Check className="h-4 w-4" /> {busy ? 'Saving...' : wasRejected ? 'Approve after re-check' : 'Full day approve'}
+                    <Check className="h-4 w-4" /> {busy ? 'Saving...' : 'Full day approve'}
                   </button>
                   <button type="button" disabled={busyId !== null} onClick={() => void review(row, 0.5)} className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs font-extrabold text-amber-900 disabled:opacity-50">
                     Half day
                   </button>
-                  {!wasRejected && <button type="button" disabled={busyId !== null} onClick={() => void review(row, 'reject')} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700 disabled:opacity-50">
+                  <button type="button" disabled={busyId !== null} onClick={() => void review(row, 'reject')} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700 disabled:opacity-50">
                     <X className="h-4 w-4" /> Reject with reason
-                  </button>}
+                  </button>
                 </div>
               </article>
             );
           })}
         </div>
       )}
-      {error && <p role="alert" className="mt-3 break-words rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</p>}
+      {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2"><p role="alert" className="break-words text-xs font-semibold text-rose-700">Requests load/update nahi hui: {error}</p><button onClick={() => void load()} className="mt-2 text-xs font-bold text-rose-800 underline">Dobara try karein</button></div>}
       {message && <p role="status" className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">{message}</p>}
-      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">Approval/rejection ka record save hota hai. Sirf approved hajiri payroll mein count hogi.</p>
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">Review ke baad request is pending queue se hat jaati hai; final record history mein rehta hai.</p>
     </section>
   );
 }

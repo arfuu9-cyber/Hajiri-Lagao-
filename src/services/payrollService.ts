@@ -266,15 +266,15 @@ export interface LabourRecentItem {
   note?: string;
 }
 
-export async function fetchLabourDashboardData(who: { id?: string | null; name?: string | null }, period: 'week' | 'month' = 'week'): Promise<LabourDashboardData | null> {
-  const base = supabase.from('workers').select('id, daily_wage');
-  const { data: worker } = who.id
-    ? await base.eq('id', who.id).maybeSingle()
-    : await base
-        .ilike('name', (who.name ?? '').trim())
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+export async function fetchLabourDashboardData(who: { id?: string | null }, period: 'week' | 'month' = 'week'): Promise<LabourDashboardData | null> {
+  // A labour account must use the exact worker row linked by the verified connection flow.
+  // Never fall back to name matching; two workers may share the same name.
+  if (!who.id) return null;
+  const { data: worker } = await supabase
+    .from('workers')
+    .select('id, daily_wage')
+    .eq('id', who.id)
+    .maybeSingle();
 
   if (!worker) return null;
 

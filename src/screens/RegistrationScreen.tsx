@@ -4,8 +4,8 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { validateName, validatePhone } from '@/utils/validation';
-import { createWorker, claimWorkerByCode } from '@/services/workerService';
-import type { UserRole, Worker } from '@/types/database';
+import { createWorker } from '@/services/workerService';
+import type { UserRole } from '@/types/database';
 
 interface RegistrationScreenProps {
   onBack: () => void;
@@ -21,10 +21,9 @@ const ROLES: { key: UserRole; icon: typeof HardHat; color: string; bg: string }[
 
 export function RegistrationScreen({ onBack, onSaved, existingProfile = false }: RegistrationScreenProps) {
   const { t } = useLang();
-  const { saveProfile, user, profile, myWorker, reloadMyWorker } = useAuth();
+  const { saveProfile, user, profile, myWorker, reloadMyWorker, reloadProfile } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
-  const [inviteCode, setInviteCode] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,17 +53,15 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
     setLoading(true);
     try {
       if (!existingProfile) {
-        await saveProfile(role, name);
+        await saveProfile(role, name, phone);
       }
 
       const roleName = role === 'thekedar' ? 'Thekedar' : role === 'gatekeeper' ? 'Gatekeeper' : 'Labour';
-      let worker: Worker | null = null;
-      if (!existingProfile && role === 'labour' && inviteCode.trim()) {
-        worker = await claimWorkerByCode(inviteCode);
-        if (!worker) throw new Error(t('inviteInvalid'));
-      }
-      if (!worker) {
-        worker = await createWorker({
+      // A new labour account is not assigned to a worker row yet. It must request a
+      // team connection from the Team screen, and the thekedar must approve it.
+      // Only thekedar registration and the existing-profile worker-creation flow create a row here.
+      if (existingProfile || role !== 'labour') {
+        await createWorker({
           name: name.trim(),
           phone: phone.trim(),
           role: roleName,
@@ -76,6 +73,7 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
       }
 
       await reloadMyWorker();
+      await reloadProfile();
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('couldNotSave'));
@@ -145,17 +143,9 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
         </div>
 
         {!existingProfile && role === 'labour' && (
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">{t('inviteLabel')}</label>
-            <p className="text-xs text-gray-500 mb-2">{t('inviteHint')}</p>
-            <input
-              type="text"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              maxLength={6}
-              placeholder="ABC123"
-              className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-base font-bold uppercase tracking-[0.3em] focus:border-navy-500 focus:outline-none"
-            />
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-sm font-bold text-emerald-900">Thekedar se verified connection</p>
+            <p className="mt-1 text-xs leading-relaxed text-emerald-800">Registration ke baad “Team & Invite / Connect Thekedar” screen par QR scan karein ya 6-character code enter karein. Thekedar approve karega tabhi hajiri aur kharchi link hogi.</p>
           </div>
         )}
 
