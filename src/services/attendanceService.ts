@@ -112,7 +112,7 @@ export interface AttendanceApprovalItem {
   time_in: string;
   duty_multiplier: number;
   marked_by: string | null;
-  approval_status: 'pending' | 'rejected';
+  approval_status: 'pending';
   rejection_reason: string | null;
   worker: { id: string; name: string; role: string; phone: string };
 }
@@ -122,7 +122,7 @@ export async function fetchPendingAttendanceApprovals(): Promise<AttendanceAppro
   const { data, error } = await supabase
     .from('attendance')
     .select('id, worker_id, date, time_in, duty_multiplier, marked_by, approval_status, rejection_reason')
-    .in('approval_status', ['pending', 'rejected'])
+    .eq('approval_status', 'pending')
     .order('date', { ascending: false })
     .order('time_in', { ascending: false })
     .limit(100);
@@ -160,7 +160,7 @@ export async function approveAttendanceRequest(attendanceId: string, dutyMultipl
       rejection_reason: null,
     })
     .eq('id', attendanceId)
-    .in('approval_status', ['pending', 'rejected'])
+    .eq('approval_status', 'pending')
     .select('id')
     .maybeSingle();
   if (error) throw error;

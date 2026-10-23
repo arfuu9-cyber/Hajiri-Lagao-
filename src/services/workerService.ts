@@ -161,13 +161,3 @@ export function getTodayDate(): string {
   return getKolkataDateString();
 }
 
-/**
- * A mazdoor registering in the app takes over the record his thekedar already
- * created for the same phone number (so thekedar and mazdoor stay connected).
- */
-export async function claimWorkerByCode(code: string): Promise<Worker | null> {
-  const { data, error } = await supabase.rpc('claim_worker_by_code', { p_code: code.trim() });
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  return row && row.id ? (row as Worker) : null;
-}

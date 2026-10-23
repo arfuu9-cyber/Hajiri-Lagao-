@@ -18,7 +18,7 @@ import { fetchDashboardData, fetchLabourDashboardData, type DashboardData, type 
 import type { UserRole } from '@/types/database';
 
 interface HomeScreenProps {
-  onNavigate: (screen: 'nfcAttendance' | 'addWorker' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers') => void;
+  onNavigate: (screen: 'nfcAttendance' | 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections') => void;
   role: UserRole;
 }
 
@@ -37,6 +37,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showAddLaborMenu, setShowAddLaborMenu] = useState(false);
   const [errorDetail, setErrorDetail] = useState('');
 
   const loadStats = useCallback(async () => {
@@ -44,10 +45,13 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
     setError(false);
     try {
       if (role === 'labour') {
-        const workerName = profile?.display_name?.trim();
-        if (myWorker?.id || workerName) {
-          const data = await fetchLabourDashboardData({ id: myWorker?.id, name: workerName }, period);
+        // Never search payroll/attendance by a display name: an unlinked worker could
+        // accidentally see another person's record when names are similar.
+        if (myWorker?.id) {
+          const data = await fetchLabourDashboardData({ id: myWorker.id }, period);
           setLabourStats(data);
+        } else {
+          setLabourStats(null);
         }
       } else {
         const data = await fetchDashboardData();
@@ -59,7 +63,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
     } finally {
       setLoading(false);
     }
-  }, [role, profile?.display_name, myWorker?.id, period]);
+  }, [role, myWorker?.id, period]);
 
   useEffect(() => {
     loadStats();
@@ -68,16 +72,17 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
   // Mazdoor: pick up the thekedar's new haziri / kharchi without reloading
   useEffect(() => {
     if (role !== 'labour') return;
+    if (!myWorker?.id) return;
     const timer = setInterval(async () => {
       try {
-        const data = await fetchLabourDashboardData({ id: myWorker?.id, name: profile?.display_name }, period);
+        const data = await fetchLabourDashboardData({ id: myWorker.id }, period);
         if (data) setLabourStats(data);
       } catch {
         /* keep showing the last data */
       }
     }, 20000);
     return () => clearInterval(timer);
-  }, [role, myWorker?.id, profile?.display_name, period]);
+  }, [role, myWorker?.id, period]);
 
   const markMyself = async () => {
     if (!myWorker) return;
@@ -137,6 +142,13 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             )}
           </div>
         </section>
+        {role === 'labour' && (
+          <button type="button" onClick={() => onNavigate('teamConnections')} className="flex w-full items-center gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-left shadow-sm transition active:scale-[0.99]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><QrCode className="h-6 w-6" /></span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-gray-900">{myWorker?.thekedar_id ? 'Mera verified thekedar' : 'Thekedar se connect karein'}</span><span className="mt-1 block text-xs text-gray-500">QR scan karein ya 6-character invite code enter karein</span></span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-emerald-700" />
+          </button>
+        )}
         {/* === THEKEDAR === */}
         {role === 'thekedar' && (
           <>
@@ -157,7 +169,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             <PendingAttendanceApprovals onChanged={loadStats} />
             <AdvanceRequests onChanged={loadStats} />
             <div className="grid grid-cols-3 gap-3">
-              <QuickTile icon={UserPlus} color="bg-saffron-500" label={t('tileNewWorker')} onClick={() => onNavigate('addWorker')} />
+              <QuickTile icon={QrCode} color="bg-green-600" label="Team & Invite" onClick={() => onNavigate('teamConnections')} />
               <QuickTile icon={HandCoins} color="bg-navy-700" label={t('tileGiveAdvance')} onClick={() => onNavigate('viewWorkers')} />
               <QuickTile icon={WalletCards} color="bg-navy-600" label={t('tileHisaab')} onClick={() => onNavigate('payroll')} />
               <QuickTile icon={Nfc} color="bg-green-500" label={t('tileNfc')} onClick={() => onNavigate('nfcAttendance')} />
@@ -380,6 +392,30 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
           </>
         )}
       </main>
+      {role === 'thekedar' && (
+        <div className="fixed bottom-24 right-5 z-40 flex flex-col items-end gap-3">
+          {showAddLaborMenu && (
+            <div className="w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl" role="menu" aria-label="Add labor options">
+              <button type="button" role="menuitem" onClick={() => { setShowAddLaborMenu(false); onNavigate('addHelper'); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-emerald-50 active:bg-emerald-100">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><UserPlus className="h-5 w-5" /></span>
+                <span><span className="block text-sm font-extrabold text-slate-900">Mazdoor / Helper</span><span className="block text-xs text-slate-500">Naya helper add karein</span></span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setShowAddLaborMenu(false); onNavigate('addKarigar'); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-emerald-50 active:bg-emerald-100">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><HardHat className="h-5 w-5" /></span>
+                <span><span className="block text-sm font-extrabold text-slate-900">Karigar / Mistri</span><span className="block text-xs text-slate-500">Skilled worker add karein</span></span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setShowAddLaborMenu(false); onNavigate('addWorker'); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-50 active:bg-slate-100">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Users className="h-5 w-5" /></span>
+                <span><span className="block text-sm font-extrabold text-slate-900">Other / Custom role</span><span className="block text-xs text-slate-500">Apna kaam select karein</span></span>
+              </button>
+            </div>
+          )}
+          <button type="button" aria-expanded={showAddLaborMenu} onClick={() => setShowAddLaborMenu((open) => !open)} className="flex min-h-14 items-center gap-3 rounded-full bg-[#0759B5] px-5 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-blue-900/25 transition active:scale-95">
+            {showAddLaborMenu ? <ChevronDown className="h-5 w-5 rotate-180" /> : <UserPlus className="h-5 w-5" />}
+            {showAddLaborMenu ? 'Close' : 'Add Labor'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
