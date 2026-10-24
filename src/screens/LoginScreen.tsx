@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, ClipboardCheck, HardHat, ShieldCheck, WalletCards } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, ShieldCheck, WalletCards } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import { errText } from '@/utils/errors';
@@ -26,11 +26,10 @@ export function LoginScreen() {
           );
         }),
       ]);
-      // OAuth should navigate away. If a browser blocks that navigation, unlock the button.
+      // OAuth should navigate away. If the browser blocks that navigation, unlock the button.
       window.setTimeout(() => setGoogleLoading(false), 12000);
     } catch (err) {
-      const message = errText(err) || 'Google sign-in abhi available nahi hai. Dobara try karein.';
-      setError(message);
+      setError(errText(err) || 'Google sign-in abhi available nahi hai. Dobara try karein.');
       setGoogleLoading(false);
     } finally {
       if (requestTimer !== undefined) window.clearTimeout(requestTimer);
@@ -38,63 +37,61 @@ export function LoginScreen() {
   };
 
   const benefits = [
-    { icon: ClipboardCheck, title: 'Hajiri', color: 'bg-emerald-100 text-emerald-800' },
-    { icon: WalletCards, title: 'Kharchi', color: 'bg-amber-100 text-amber-800' },
-    { icon: ShieldCheck, title: 'Safe hisaab', color: 'bg-sky-100 text-sky-800' },
+    { icon: ClipboardCheck, title: 'Roz ki hajiri', color: 'login-feature-green' },
+    { icon: WalletCards, title: 'Kharchi ka hisaab', color: 'login-feature-gold' },
+    { icon: ShieldCheck, title: 'Apni team safe', color: 'login-feature-blue' },
   ];
 
   return (
-    <main className="login-screen">
+    <main className="login-screen login-screen-v3">
       <div className="login-screen-orb login-screen-orb-a" aria-hidden="true" />
       <div className="login-screen-orb login-screen-orb-b" aria-hidden="true" />
 
-      <header className="login-topbar">
+      <header className="login-topbar login-topbar-v3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="login-brand-icon"><img src="/app-icon.webp" alt="" /></span>
           <span className="min-w-0">
             <span className="block truncate text-base font-black tracking-tight text-slate-900">{t('appName')}</span>
-            <span className="block text-[11px] font-semibold text-slate-500">Site par kaam, ek app mein</span>
+            <span className="block text-[11px] font-semibold text-slate-500">Roz ka hisaab, saath-saath</span>
           </span>
         </div>
         <div className="shrink-0 rounded-xl border border-slate-200 bg-white p-1 shadow-sm"><LangToggle /></div>
       </header>
 
-      <section className="login-content">
-        <div className="login-hero-card">
-          <span className="login-hero-logo"><img src="/logo.webp" alt="" /></span>
-          <p className="mt-4 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">Thekedar · Mazdoor · Hisaab</p>
-          <h1 className="mt-2 text-[1.85rem] font-black leading-tight tracking-tight text-white sm:text-4xl">Kaam ka hisaab,<br /><span className="text-amber-300">bilkul aasaan.</span></h1>
-          <p className="mt-3 max-w-sm text-sm leading-6 text-emerald-50/85">Roz ki haziri, kharchi aur team ka record — sab ek jagah, bina kagaz ke jhanjhat.</p>
-          <div className="mt-5 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-3 text-xs font-semibold text-white/90">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-emerald-950"><HardHat className="h-4 w-4" /></span>
-            <span>Apna Google account use karke surakshit login karein.</span>
-          </div>
+      <section className="login-content login-content-v3">
+        <div className="login-welcome-card">
+          <div className="login-welcome-mark"><img src="/logo.webp" alt="Hajiri Lagao logo" /></div>
+          <p className="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100">HAJIRI LAGAO</p>
+          <h1 className="mt-2 text-[2rem] font-black leading-[1.08] tracking-tight text-white sm:text-4xl">Welcome back<span className="text-amber-300">.</span></h1>
+          <p className="mt-3 max-w-sm text-sm leading-6 text-emerald-50/90">Apne account mein wapas aayein. Wahi Google account use karein—apna saved role aur dashboard khul jayega.</p>
+          <div className="login-welcome-status"><span className="login-status-dot" /> Secure sign-in · No SMS OTP needed</div>
         </div>
 
-        <div className="login-benefit-row" aria-label="App ke fayde">
+        <div className="login-benefit-row login-benefit-row-v3" aria-label="App ke fayde">
           {benefits.map(({ icon: Icon, title, color }) => (
-            <div key={title} className="login-benefit-pill">
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${color}`}><Icon className="h-4.5 w-4.5" /></span>
-              <span className="text-xs font-extrabold text-slate-700">{title}</span>
+            <div key={title} className="login-benefit-pill login-benefit-pill-v3">
+              <span className={`login-feature-icon ${color}`}><Icon className="h-4 w-4" /></span>
+              <span className="text-[11px] font-extrabold leading-4 text-slate-700">{title}</span>
             </div>
           ))}
         </div>
 
-        <div className="login-action-card">
+        <div className="login-action-card login-action-card-v3">
           <div className="mb-4">
-            <h2 className="text-lg font-black text-slate-900">Welcome back</h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">Pehli baar ho to account set up hoga. Wahi Gmail dobara use karoge to apna dashboard khulega.</p>
+            <h2 className="text-lg font-black text-slate-900">Continue with Google</h2>
+            <p className="mt-1 text-sm leading-5 text-slate-500">Pehli baar hain to profile setup hoga. Pehle se account hai to dobara registration ki zaroorat nahi.</p>
           </div>
           {error && (
-            <div role="alert" className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
+            <div role="alert" className="mb-3 break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-5 text-rose-800">
               {error}
+              <button type="button" onClick={() => setError(null)} className="ml-2 font-bold underline">Hatao</button>
             </div>
           )}
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={googleLoading}
-            className="login-google-button flex min-h-[54px] w-full items-center justify-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-extrabold transition active:scale-[0.99] disabled:cursor-wait disabled:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500"
+            className="login-google-button login-google-button-v3 flex min-h-[56px] w-full items-center justify-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-extrabold transition active:scale-[0.99] disabled:cursor-wait disabled:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500"
           >
             {googleLoading ? (
               <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -102,14 +99,14 @@ export function LoginScreen() {
                 <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
               </svg>
             ) : <GoogleIcon />}
-            <span>{googleLoading ? 'Google khul raha hai…' : t('continueGoogle')}</span>
+            <span>{googleLoading ? 'Google khul raha hai…' : (t('continueGoogle') || 'Google ke saath continue karein')}</span>
             {!googleLoading && <ArrowRight className="ml-auto h-5 w-5 text-emerald-800" />}
           </button>
-          <p className="mt-3 text-center text-[11px] leading-5 text-slate-400">Google ka secure sign-in use hota hai. App tumhara password store nahi karti.</p>
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] leading-5 text-slate-500"><ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-700" /> App tumhara Google password store nahi karti.</p>
         </div>
       </section>
 
-      <footer className="login-footer">HAJIRI LAGAO <span>•</span> ROZ KA HISAAB, SAATH-SAATH</footer>
+      <footer className="login-footer login-footer-v3"><span>HAJIRI LAGAO</span> · ROZ KA HISAAB, SAATH-SAATH</footer>
     </main>
   );
 }

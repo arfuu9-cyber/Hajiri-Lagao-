@@ -56,10 +56,11 @@ export async function resolveRequest(
   approve: boolean,
   note = '',
 ): Promise<AdvanceRequestReviewResult> {
+  // Keep this argument order aligned with the repair migration's PostgREST RPC signature.
   const { data, error } = await supabase.rpc('review_advance_request', {
-    p_request_id: req.id,
     p_approve: approve,
     p_note: note.trim() || null,
+    p_request_id: req.id,
   });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;

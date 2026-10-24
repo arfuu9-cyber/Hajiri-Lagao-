@@ -53,3 +53,21 @@ Agar worker apne account mein pending advance nahi dekhta, pehle **Team & Invite
 ## Important
 
 SQL Editor mein `Success` aana migration ke execute hone ko batata hai—yeh live auth, policies aur poore flow ka proof nahi hai. Dependencies install karke local `npm run typecheck` aur `npm run build` chalao, aur live Supabase par above checklist test karo. Is package ke source changes ke baad bhi external Google OAuth configuration aur production RLS policies ko actual project par verify karna zaroori hai.
+
+---
+
+## Video ke live errors ka repair (24 Oct 2026)
+
+Agar app par `column attendance.rejection_reason does not exist` ya `Could not find the function public.review_advance_request(...) in the schema cache` error aa raha hai, to backup ke baad ye migration run karein:
+
+`supabase/migrations/20261024160000_repair_attendance_and_advance_review.sql`
+
+Yeh `attendance.rejection_reason` add karta hai, `review_advance_request` ke RPC arguments ko frontend ke `p_approve`, `p_note`, `p_request_id` keys ke saath align karta hai, aur in-app pending advance list/confirm/dispute functions ko refresh karta hai. SQL success ke baad Vercel latest commit redeploy karein; zaroorat pade to app refresh/Incognito mein test karein.
+
+**Test checklist:**
+- Thekedar login karke pending attendance approve/reject kare.
+- Thekedar Mazdoor ki kharchi request approve/reject kare.
+- Mazdoor apni pending kharchi confirm kare ya reason ke saath dispute kare.
+- Approved requests par reload ke baad status change persisted ho.
+
+Agar migration fail hoti hai, poora SQL error save karein aur wahi bhejein. Random columns drop ya purani migration repeat na karein.
