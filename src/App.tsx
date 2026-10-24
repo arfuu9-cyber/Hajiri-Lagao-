@@ -143,7 +143,7 @@ function MainApp() {
   const visibleTabs: TabKey[] = getTabsForRole(role);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-28">
       {activeTab === 'home' && (
         <HomeScreen
           key={refreshKey}
