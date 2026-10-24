@@ -41,10 +41,10 @@ export function AdvanceRequests({ workerId, onChanged }: { workerId?: string; on
       setItems((current) => current.filter((item) => item.id !== req.id));
       if (!approve) {
         setNotice(`${req.workerName ?? 'Mazdoor'} ki kharchi request reject ho gayi aur list se hata di gayi.`);
-      } else if (result.advanceCreated) {
-        setNotice(`${req.workerName ?? 'Mazdoor'} ki kharchi approve ho gayi. Mazdoor apne account se app mein confirm karega; tab tak deduction nahi hogi.`);
+      } else if (result.otpSent) {
+        setNotice(`${req.workerName ?? 'Mazdoor'} ki kharchi approve ho gayi. Request list se hat gayi aur OTP bhejne ki request ho gayi.`);
       } else {
-        setNotice('Request approve ho gayi, lekin kharchi record ID nahi mili. Hisaab refresh karke verify karein.');
+        setNotice(result.otpMessage ?? 'Kharchi approve ho gayi aur request list se hata di gayi. OTP bhejne mein dikkat aayi; worker verification abhi pending hai.');
       }
       onChanged?.();
       // Refresh other requests without bringing the completed request back into the UI.
@@ -96,7 +96,7 @@ export function AdvanceRequests({ workerId, onChanged }: { workerId?: string; on
       {loadError && <div className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">Requests load nahi hui: {loadError} <button onClick={() => void load()} className="ml-1 underline">Retry</button></div>}
       {actionError && <div role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700"><XCircle className="mr-1 inline h-4 w-4" />{actionError}</div>}
       {notice && <div role="status" className="mt-3 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-800"><CheckCircle2 className="h-4 w-4 shrink-0" />{notice}</div>}
-      <p className="mt-3 text-[11px] leading-relaxed text-gray-400">Approve karte hi request is list se hat jaati hai. Mazdoor apne account se kharchi confirm karega; confirmation tak payroll deduction nahi hogi.</p>
+      <p className="mt-3 text-[11px] leading-relaxed text-gray-400">Approve karte hi request is list se hat jaati hai. Kharchi worker ki OTP verification tak hisaab mein final deduction nahi hogi.</p>
     </section>
   );
 }

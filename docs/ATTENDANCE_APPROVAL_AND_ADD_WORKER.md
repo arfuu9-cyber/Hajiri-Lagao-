@@ -14,7 +14,7 @@
 1. A linked worker sends a kharchi request.
 2. The linked thekedar can approve or reject. The database transaction changes the request status and creates at most one advance row.
 3. Once reviewed, the kharchi request leaves the pending queue immediately.
-4. An approved advance remains `pending` until the linked worker confirms receipt in the app. The worker can dispute a wrong amount; unconfirmed/disputed advances are not deducted from payroll.
+4. An approved advance remains `pending` until worker OTP verification succeeds; this prevents an unverified advance from being deducted in payroll. Real OTP delivery still requires an SMS provider.
 
 ## Team & Invite screen
 
@@ -34,7 +34,7 @@ On the Workers screen, thekedar's floating **Add Labor** button expands shortcut
 - Worker cannot mark attendance for another worker or a different date.
 - Attendance request disappears from pending after approve/reject, and approved attendance counts in payroll exactly once.
 - Advance request disappears from pending after approve/reject, and only one advance row is made when approved.
-- A worker confirmation/dispute failure shows a warning and does not create a duplicate advance on reviewer retry.
+- OTP failure shows a warning but does not recreate the approved advance if the reviewer retries.
 - Invite code by itself does not create a link before thekedar approval.
 - Request lists show a fetch error instead of falsely saying there are zero requests.
 - `attendance_audit_log` records attendance actions; app-side hard delete is disabled.

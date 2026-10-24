@@ -10,6 +10,7 @@ export interface Worker {
   name: string;
   phone: string;
   role: string;
+  nfc_tag_uid: string | null;
   daily_wage: number;
   site_id: string | null;
   active: boolean;
@@ -67,11 +68,9 @@ export interface Advance {
   date: string;
   note: string | null;
   created_at: string;
-  status: 'pending' | 'verified' | 'disputed';
+  status: 'pending' | 'verified';
   given_by: string | null;
   verified_at: string | null;
-  disputed_at?: string | null;
-  dispute_reason?: string | null;
 }
 
 export interface PayrollRow {

@@ -9,7 +9,7 @@
 - On approval, the database sets `workers.user_id` to the requesting labour account. The link check is enforced in a SECURITY DEFINER RPC; table RLS blocks clients from writing connection decisions directly. A trigger also blocks direct browser updates to a worker row’s account link, and insert policy prevents attaching another user account when a thekedar creates a worker.
 - A worker account is limited to one active worker profile by the server, preventing duplicate payroll records even under the same thekedar. Old unassigned legacy rows are not automatically deleted, but they cannot submit attendance or kharchi until the verified team connection is active.
 - QR scanning uses the browser `BarcodeDetector` where available. Manual code entry stays available as fallback.
-- Attendance decisions remove the request from the pending review queue immediately. Kharchi review is performed in one database transaction, then the pending card disappears. The linked worker can confirm or dispute the advance inside the app; it will not create the advance a second time on retry.
+- Attendance decisions remove the request from the pending review queue immediately. Kharchi review is performed in one database transaction, then the pending card disappears. If OTP sending fails, the app still reports that the request was approved but worker verification is pending; it will not create the advance a second time on retry.
 - Request-loading errors are now shown as errors rather than being falsely reported as “no requests”.
 
 ## Required Supabase SQL steps
@@ -34,7 +34,7 @@ If `attendance.approval_status` is still missing after step 1, compare the exact
 4. Verify the labour account sees **Pending** but does not yet gain access to that team's attendance/payroll.
 5. On the correct thekedar account, approve the request. Verify the item leaves the incoming queue and the worker shows as connected.
 6. Sign in as the connected worker and request today's attendance. Confirm the thekedar sees one pending item. Approve it; confirm it disappears from the pending list and only one approved attendance row exists for that worker/date.
-7. Submit a kharchi request. Approve it as thekedar; confirm the pending request disappears and exactly one `advances` row is created. The advance should appear in the linked worker account for in-app confirmation or dispute; no SMS provider is required.
+7. Submit a kharchi request. Approve it as thekedar; confirm the pending request disappears and exactly one `advances` row is created. If the SMS provider is not configured, the UI should explicitly warn that OTP verification remains pending.
 8. Repeat with a second unrelated thekedar. They must not be able to view/approve the first thekedar's requests.
 
 ## Not a guarantee of fraud-free physical attendance

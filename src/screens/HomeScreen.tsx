@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-  HardHat, UserPlus, UserCheck, UserX, WalletCards, Bell,
+  HardHat, Nfc, UserPlus, UserCheck, UserX, WalletCards, Bell,
   TrendingUp, IndianRupee, HandCoins, QrCode, CreditCard,
   ScanLine, Users, ChevronDown, ChevronUp, Calendar, Eye, CheckCircle2, Clock, ChevronRight,
 } from 'lucide-react';
@@ -12,14 +12,13 @@ import { errText } from '@/utils/errors';
 import { TodayTasks } from '@/components/TodayTasks';
 import { PendingAttendanceApprovals } from '@/components/PendingAttendanceApprovals';
 import { AdvanceRequests } from '@/components/AdvanceRequests';
-import { PendingAdvanceConfirmations } from '@/components/PendingAdvanceConfirmations';
 import { createAttendance, AttendanceDuplicateError } from '@/services/attendanceService';
 import { getKolkataDateString } from '@/utils/date';
 import { fetchDashboardData, fetchLabourDashboardData, type DashboardData, type LabourDashboardData } from '@/services/payrollService';
 import type { UserRole } from '@/types/database';
 
 interface HomeScreenProps {
-  onNavigate: (screen: 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections') => void;
+  onNavigate: (screen: 'nfcAttendance' | 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections') => void;
   role: UserRole;
 }
 
@@ -166,14 +165,14 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               </ol>
             </section>
             )}
-            <TodayTasks onOpenList={() => onNavigate('viewWorkers')} onChanged={loadStats} />
+            <TodayTasks onOpenList={() => onNavigate('nfcAttendance')} onChanged={loadStats} />
             <PendingAttendanceApprovals onChanged={loadStats} />
             <AdvanceRequests onChanged={loadStats} />
             <div className="grid grid-cols-3 gap-3">
               <QuickTile icon={QrCode} color="bg-green-600" label="Team & Invite" onClick={() => onNavigate('teamConnections')} />
               <QuickTile icon={HandCoins} color="bg-navy-700" label={t('tileGiveAdvance')} onClick={() => onNavigate('viewWorkers')} />
               <QuickTile icon={WalletCards} color="bg-navy-600" label={t('tileHisaab')} onClick={() => onNavigate('payroll')} />
-              <QuickTile icon={Users} color="bg-green-500" label={t('workers')} onClick={() => onNavigate('viewWorkers')} />
+              <QuickTile icon={Nfc} color="bg-green-500" label={t('tileNfc')} onClick={() => onNavigate('nfcAttendance')} />
               <QuickTile icon={CreditCard} color="bg-navy-500" label={t('tileRegister')} onClick={() => onNavigate('registration')} />
               <QuickTile icon={Bell} color="bg-saffron-600" label={t('tileAlerts')} onClick={() => onNavigate('alerts')} />
             </div>
@@ -192,9 +191,9 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-4">
-                    <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('viewWorkers')} accentColor="bg-green-50" />
+                    <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
                     <DashboardStatCard label={t('attendancePending')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
-                    <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('viewWorkers')} accentColor="bg-teal-50" />
+                    <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
                     <DashboardStatCard label={t('pendingAdvances')} value={money(stats?.pendingAdvances ?? 0)} icon={HandCoins} onClick={() => onNavigate('payroll')} accentColor="bg-rose-50" />
                   </div>
                 </>
@@ -233,10 +232,10 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 <ErrorView message={t('couldNotLoad')} onRetry={loadStats} detail={errorDetail} />
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('viewWorkers')} accentColor="bg-green-50" />
+                  <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
                   <DashboardStatCard label={t('attendancePending')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
                   <DashboardStatCard label={t('activeWorkers')} value={stats?.activeWorkers ?? 0} icon={Users} onClick={() => onNavigate('viewWorkers')} accentColor="bg-navy-50" />
-                  <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('viewWorkers')} accentColor="bg-teal-50" />
+                  <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
                 </div>
               )}
             </section>
@@ -246,12 +245,12 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('quickActions')}</h2>
               <div className="space-y-4">
                 <ActionButton
-                  icon={Users}
-                  iconBg="bg-green-600"
+                  icon={Nfc}
+                  iconBg="bg-green-500"
                   iconColor="text-white"
-                  title={t('workers')}
-                  desc={t('viewAllWorkers')}
-                  onClick={() => onNavigate('viewWorkers')}
+                  title={t('markAttendance')}
+                  desc={t('markAttendanceDesc')}
+                  onClick={() => onNavigate('nfcAttendance')}
                 />
               </div>
             </section>
@@ -319,7 +318,6 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 {selfError && <p className="mt-2 text-sm text-red-600">{t('couldNotSave')}</p>}
               </section>
             )}
-            {myWorker?.id && <PendingAdvanceConfirmations workerId={myWorker.id} onChanged={loadStats} />}
             {/* Personal stats */}
             <div className="flex gap-2 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-navy-100">
               {(['week', 'month'] as const).map((p) => (
@@ -366,7 +364,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                           {r.kind === 'attendance' ? t('updAttendance') : r.kind === 'payment' ? `${t('updPaid')} ${money(r.amount)}` : `${t('updAdvance')} ${money(r.amount)}`}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : r.status === 'disputed' ? t('updDisputed') : t('updPending')}` : r.kind === 'attendance' ? ` · ${r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? `Rejected${r.note ? `: ${r.note}` : ''}` : 'Pending approval'}` : ''}
+                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : t('updPending')}` : r.kind === 'attendance' ? ` · ${r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? `Rejected${r.note ? `: ${r.note}` : ''}` : 'Pending approval'}` : ''}
                         </p>
                       </div>
                     </div>

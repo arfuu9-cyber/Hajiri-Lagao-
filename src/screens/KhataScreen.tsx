@@ -180,7 +180,7 @@ export function KhataScreen({ workerId, onBack, readOnly = false }: KhataScreenP
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-gray-900">{e.kind === 'haziri' ? 'Haziri' : e.kind === 'kharchi' ? 'Kharchi li' : 'Bhugtaan mila'}{e.note ? ` · ${e.note}` : ''}</p>
-                <p className="flex items-center gap-1 text-xs text-gray-500">{e.date}{e.disputed && <span className="text-rose-600">· Hisaab par dikkat darj</span>}{e.pending && !e.disputed && <span className="text-saffron-600">· Mazdoor confirmation pending</span>}{e.kind === 'haziri' && <CheckCircle2 className="h-3 w-3 text-green-500" />}</p>
+                <p className="flex items-center gap-1 text-xs text-gray-500">{e.date}{e.pending && <span className="text-saffron-600">· OTP baaki</span>}{e.kind === 'haziri' && <CheckCircle2 className="h-3 w-3 text-green-500" />}</p>
               </div>
               <p className={`text-sm font-extrabold ${e.kind === 'haziri' ? 'text-green-600' : 'text-gray-800'}`}>{e.kind === 'haziri' ? '+' : '−'}{rs(e.amount)}</p>
             </div>

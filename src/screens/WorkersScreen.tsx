@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Users, Search, CheckCircle2, ShieldCheck, Plus, X, UserPlus, HardHat, Clock, ChevronRight } from 'lucide-react';
+import { Users, Search, CreditCard, CheckCircle2, XCircle, Loader2, ChevronRight, ShieldCheck, Plus, X, UserPlus, HardHat } from 'lucide-react';
 import { LoadingView } from '@/components/LoadingView';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
 import { WorkerCard } from '@/components/WorkerCard';
 import { PrimaryButton, LangToggle } from '@/components/PrimaryButton';
 import { useLang } from '@/context/LangContext';
-import { fetchWorkers, searchWorkers } from '@/services/workerService';
-import { createAdvance } from '@/services/payrollService';
+import { fetchWorkers, searchWorkers, assignNfcTag, removeNfcTag } from '@/services/workerService';
+import { createAdvance, sendAdvanceOtp, resendAdvanceOtp, verifyAdvanceOtp } from '@/services/payrollService';
+import {
+  getNfcAvailability,
+  startRealNfcScan,
+  simulateNfcScan,
+  cancelNfcScan,
+  NfcScanCancelledError,
+} from '@/services/nfcService';
 import { useAuth, useTeamId } from '@/context/AuthContext';
 import type { Worker } from '@/types/database';
 
@@ -17,6 +24,7 @@ interface WorkersScreenProps {
   onViewDetail: (workerId: string) => void;
 }
 
+type AssignState = 'idle' | 'scanning' | 'saving' | 'success' | 'error';
 
 export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersScreenProps) {
   const { t } = useLang();
@@ -28,14 +36,28 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  // Advance modal state: worker confirms from their own signed-in account.
+  // NFC assignment state
+  const [assigningWorker, setAssigningWorker] = useState<Worker | null>(null);
+  const [assignState, setAssignState] = useState<AssignState>('idle');
+  const [assignMessage, setAssignMessage] = useState('');
+  const [showMockAssign, setShowMockAssign] = useState(false);
+  const [mockAssignUid, setMockAssignUid] = useState('');
+
+  // Advance modal state
   const [advanceWorker, setAdvanceWorker] = useState<Worker | null>(null);
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [advanceDate, setAdvanceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [advanceNote, setAdvanceNote] = useState('');
   const [advanceLoading, setAdvanceLoading] = useState(false);
   const [advanceError, setAdvanceError] = useState<string | null>(null);
-  const [advanceStep, setAdvanceStep] = useState<'detail' | 'success'>('detail');
+  const [advanceStep, setAdvanceStep] = useState<'detail' | 'verify' | 'success'>('detail');
+  const [advanceId, setAdvanceId] = useState<string | null>(null);
+  const [maskedPhone, setMaskedPhone] = useState('');
+  const [otpInput, setOtpInput] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+
+  const nfcAvailability = getNfcAvailability();
 
   const teamId = useTeamId();
   const loadWorkers = useCallback(async () => {
@@ -76,6 +98,12 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
     return () => clearTimeout(timer);
   }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    return () => {
+      cancelNfcScan();
+    };
+  }, []);
+
   const filteredWorkers = useMemo(() => workers, [workers]);
 
   // ---- Advance modal handlers ----
@@ -86,13 +114,18 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
     setAdvanceNote('');
     setAdvanceError(null);
     setAdvanceStep('detail');
+    setAdvanceId(null);
+    setMaskedPhone('');
+    setOtpInput('');
   };
 
   const closeAdvanceDialog = () => {
-    if (advanceLoading) return;
     setAdvanceWorker(null);
     setAdvanceError(null);
     setAdvanceStep('detail');
+    setAdvanceId(null);
+    setMaskedPhone('');
+    setOtpInput('');
   };
 
   const saveAdvance = async () => {
@@ -105,19 +138,145 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
     setAdvanceLoading(true);
     setAdvanceError(null);
     try {
-      await createAdvance({
+      const advance = await createAdvance({
         workerId: advanceWorker.id,
         amount,
         date: advanceDate,
         note: advanceNote,
         givenBy: user?.id,
       });
-      setAdvanceStep('success');
-      await loadWorkers();
+      setAdvanceId(advance.id);
+      setAdvanceLoading(false);
+      // Auto-send OTP to worker
+      await handleSendOtp(advance.id);
+    } catch (err) {
+      setAdvanceError(err instanceof Error ? err.message : t('couldNotSave'));
+      setAdvanceLoading(false);
+    }
+  };
+
+  const handleSendOtp = async (advId: string) => {
+    if (!advanceWorker) return;
+    setOtpSending(true);
+    setAdvanceError(null);
+    try {
+      const res = await sendAdvanceOtp(advId);
+      setMaskedPhone(res.maskedPhone);
+      setAdvanceStep('verify');
     } catch (err) {
       setAdvanceError(err instanceof Error ? err.message : t('couldNotSave'));
     } finally {
-      setAdvanceLoading(false);
+      setOtpSending(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!advanceId) return;
+    setOtpSending(true);
+    setAdvanceError(null);
+    try {
+      const res = await resendAdvanceOtp(advanceId);
+      setMaskedPhone(res.maskedPhone);
+      setOtpInput('');
+    } catch (err) {
+      setAdvanceError(err instanceof Error ? err.message : t('couldNotSave'));
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!advanceId) return;
+    if (otpInput.trim().length !== 6) {
+      setAdvanceError(t('otpSixDigits'));
+      return;
+    }
+    setOtpVerifying(true);
+    setAdvanceError(null);
+    try {
+      await verifyAdvanceOtp(advanceId, otpInput.trim());
+      setAdvanceStep('success');
+    } catch (err) {
+      setAdvanceError(err instanceof Error ? err.message : t('otpMismatch'));
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  // ---- NFC assignment handlers ----
+  const handleAssignNfc = (worker: Worker) => {
+    setAssigningWorker(worker);
+    setAssignState('idle');
+    setAssignMessage('');
+    setShowMockAssign(false);
+    setMockAssignUid('');
+  };
+
+  const closeAssignDialog = () => {
+    cancelNfcScan();
+    setAssigningWorker(null);
+    setAssignState('idle');
+    setAssignMessage('');
+    setShowMockAssign(false);
+    setMockAssignUid('');
+  };
+
+  const handleRealScanForAssign = async () => {
+    if (!assigningWorker) return;
+    setAssignState('scanning');
+    setAssignMessage('Hold the NFC card near your phone...');
+
+    try {
+      const uid = await startRealNfcScan();
+      await saveNfcAssignment(assigningWorker.id, uid);
+    } catch (err) {
+      if (err instanceof NfcScanCancelledError) {
+        setAssignState('idle');
+        setAssignMessage('');
+      } else {
+        setAssignState('error');
+        setAssignMessage(err instanceof Error ? err.message : 'Scan failed. Please try again.');
+      }
+    }
+  };
+
+  const handleMockScanForAssign = async () => {
+    if (!assigningWorker) return;
+    setAssignState('scanning');
+    setAssignMessage('Simulating scan...');
+
+    try {
+      const uid = await simulateNfcScan(mockAssignUid || undefined);
+      await saveNfcAssignment(assigningWorker.id, uid);
+    } catch (err) {
+      setAssignState('error');
+      setAssignMessage(err instanceof Error ? err.message : 'Scan failed. Please try again.');
+    }
+  };
+
+  const saveNfcAssignment = async (workerId: string, uid: string) => {
+    setAssignState('saving');
+    setAssignMessage('Saving card assignment...');
+
+    try {
+      const updated = await assignNfcTag(workerId, uid);
+      setWorkers((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
+      setAssignState('success');
+      setAssignMessage('NFC card assigned successfully.');
+    } catch (err) {
+      setAssignState('error');
+      setAssignMessage(err instanceof Error ? err.message : 'Could not assign card.');
+    }
+  };
+
+  const handleRemoveNfc = async (worker: Worker) => {
+    if (!confirm(`Remove NFC card from ${worker.name}?`)) return;
+
+    try {
+      const updated = await removeNfcTag(worker.id);
+      setWorkers((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not remove card.');
     }
   };
 
@@ -165,6 +324,8 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
               <WorkerCard
                 key={worker.id}
                 worker={worker}
+                onAssignNfc={handleAssignNfc}
+                onRemoveNfc={handleRemoveNfc}
                 onGiveAdvance={handleGiveAdvance}
                 onView={(w) => onViewDetail(w.id)}
               />
@@ -204,57 +365,245 @@ export function WorkersScreen({ isActive, onAddWorker, onViewDetail }: WorkersSc
         </>
       )}
 
-      {/* Advance modal: record now, worker confirms securely in their own app. */}
+      {/* Advance Modal */}
       {advanceWorker && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={closeAdvanceDialog}>
-          <div className="max-h-[92svh] w-full overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-[28px] sm:p-6" onClick={(event) => event.stopPropagation()}>
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-800"><ShieldCheck className="h-6 w-6" /></span>
-                <div className="min-w-0">
-                  <h2 className="text-lg font-black text-slate-900">{t('giveAdvanceTitle')}</h2>
-                  <p className="truncate text-sm text-slate-500">{advanceWorker.name} · {advanceWorker.phone}</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={closeAdvanceDialog}>
+          <div className="w-full rounded-t-2xl bg-white p-6 sm:max-w-md sm:rounded-2xl max-h-[90vh] overflow-y-auto" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">{t('giveAdvanceTitle')}</h2>
+                <p className="text-sm text-gray-500">{advanceWorker.name} · {advanceWorker.phone}</p>
               </div>
-              <button type="button" onClick={closeAdvanceDialog} disabled={advanceLoading} aria-label="Close" className="rounded-xl p-2 text-xl leading-none text-slate-400 hover:bg-slate-100 disabled:opacity-40">×</button>
+              <button onClick={closeAdvanceDialog} disabled={advanceLoading || otpSending || otpVerifying} className="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
             </div>
 
-            {advanceStep === 'detail' ? (
+            {/* Step indicator */}
+            {advanceStep !== 'success' && (
+              <div className="mb-5 flex items-center gap-2">
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${advanceStep === 'detail' ? 'bg-saffron-500 text-white' : 'bg-green-500 text-white'}`}>1</div>
+                <div className={`h-1 flex-1 rounded-full ${advanceStep === 'verify' ? 'bg-saffron-500' : 'bg-gray-200'}`} />
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${advanceStep === 'verify' ? 'bg-saffron-500 text-white' : 'bg-gray-200 text-gray-500'}`}>2</div>
+                <span className="ml-2 text-xs text-gray-500">{advanceStep === 'detail' ? t('advanceStep1') : t('advanceStep2')}</span>
+              </div>
+            )}
+
+            {/* Step 1: Detail */}
+            {advanceStep === 'detail' && (
               <div className="space-y-4">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">{t('amount')}</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-extrabold text-slate-400">₹</span>
-                    <input autoFocus type="number" min="1" step="1" inputMode="decimal" value={advanceAmount} onChange={(event) => setAdvanceAmount(event.target.value)} placeholder="500" className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-10 pr-4 text-xl font-extrabold text-slate-900 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">{t('amount')}</label>
+                  <input autoFocus type="number" min="0.01" step="0.01" value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="e.g. 500" className="w-full rounded-xl border border-gray-300 px-4 py-3.5 text-gray-900 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">{t('date')}</label>
+                  <input type="date" value={advanceDate} onChange={(e) => setAdvanceDate(e.target.value)} className="w-full rounded-xl border border-gray-300 px-4 py-3.5 text-gray-900 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-700">{t('note')} <span className="font-normal text-gray-400">{t('noteOptional')}</span></label>
+                  <textarea value={advanceNote} onChange={(e) => setAdvanceNote(e.target.value)} rows={3} placeholder="e.g. Travel expense" className="w-full rounded-xl border border-gray-300 px-4 py-3.5 text-gray-900 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500" />
+                </div>
+                <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+                  <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">{t('advanceFraudNote')}</p>
+                </div>
+                {advanceError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{advanceError}</p>}
+                <PrimaryButton onClick={saveAdvance} loading={advanceLoading || otpSending} fullWidth>
+                  {advanceLoading ? t('saving') : otpSending ? t('otpSending') : `${t('sendOtpToWorker')} →`}
+                </PrimaryButton>
+              </div>
+            )}
+
+            {/* Step 2: OTP Verify */}
+            {advanceStep === 'verify' && (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2.5 rounded-xl bg-green-50 border border-green-200 px-4 py-3">
+                  <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-900">{t('otpSentToWorker')}</p>
+                    <p className="text-sm font-bold text-green-800 font-mono mt-0.5">{maskedPhone}</p>
+                    <p className="text-xs text-green-700 mt-1">{t('enterWorkerOtp')}</p>
                   </div>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">{t('date')}</label>
-                  <input type="date" value={advanceDate} onChange={(event) => setAdvanceDate(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-slate-900 outline-none focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
+                  <input
+                    autoFocus
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otpInput}
+                    onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="6 digit OTP"
+                    className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-center text-2xl font-bold tracking-[0.5em] text-gray-900 focus:border-saffron-500 focus:outline-none focus:ring-2 focus:ring-saffron-500"
+                  />
                 </div>
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">{t('note')} <span className="font-normal text-slate-400">{t('noteOptional')}</span></label>
-                  <textarea value={advanceNote} onChange={(event) => setAdvanceNote(event.target.value)} rows={2} maxLength={250} placeholder="Jaise: ration, travel, dawa" className="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
-                </div>
-                <div className="flex items-start gap-2.5 rounded-2xl border border-emerald-100 bg-emerald-50 p-3.5">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
-                  <p className="text-xs leading-5 text-emerald-900">{t('advanceFraudNote')}</p>
-                </div>
-                {advanceError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{advanceError}</p>}
-                <button type="button" onClick={() => void saveAdvance()} disabled={advanceLoading} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-800 px-4 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-emerald-900/15 transition hover:bg-emerald-900 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60">
-                  {advanceLoading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Kharchi save ho rahi hai…</> : `${t('saveAdvance')} →`}
+                {advanceError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{advanceError}</p>}
+                <PrimaryButton onClick={handleVerifyOtp} loading={otpVerifying} fullWidth>
+                  {otpVerifying ? t('otpVerifying') : t('verifyAdvance')}
+                </PrimaryButton>
+                <button
+                  onClick={handleResendOtp}
+                  disabled={otpSending}
+                  className="w-full text-center text-sm font-semibold text-navy-600 hover:text-navy-700 disabled:opacity-50"
+                >
+                  {otpSending ? t('otpSending') : t('resendOtpWorker')}
                 </button>
               </div>
-            ) : (
-              <div className="flex flex-col items-center py-5 text-center">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-800"><CheckCircle2 className="h-9 w-9" /></span>
-                <h3 className="mt-4 text-xl font-black text-slate-900">Kharchi record ho gayi</h3>
-                <p className="mt-1 text-2xl font-black text-emerald-800">₹{Number(advanceAmount).toLocaleString('en-IN')}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-600">Mazdoor jab apne Google account se app kholega, to is kharchi ko confirm ya dispute kar sakega. Confirm hone tak ye payroll deduction mein include nahi hogi.</p>
-                <div className="mt-5 flex w-full items-start gap-2 rounded-2xl bg-amber-50 p-3 text-left text-xs leading-5 text-amber-900">
-                  <Clock className="mt-0.5 h-4 w-4 shrink-0" /> Kharchi worker ke linked account se confirm ya dispute hogi.
+            )}
+
+            {/* Step 3: Success */}
+            {advanceStep === 'success' && (
+              <div className="flex flex-col items-center py-8">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-50 mb-4">
+                  <ShieldCheck className="h-9 w-9 text-green-600" />
                 </div>
-                <button type="button" onClick={closeAdvanceDialog} className="mt-5 min-h-12 w-full rounded-2xl bg-emerald-800 px-5 py-3 font-extrabold text-white hover:bg-emerald-900">Ho gaya</button>
+                <p className="text-lg font-bold text-gray-900 text-center">{t('advanceVerified')}</p>
+                <p className="text-sm text-gray-500 mt-1 text-center">
+                  {t('amount')}: ₹{Number(advanceAmount).toLocaleString('en-IN')}
+                </p>
+                <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-green-50 border border-green-200 px-4 py-3 w-full">
+                  <ShieldCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-green-800 leading-relaxed">{t('onlyVerifiedCounted')}</p>
+                </div>
+                <button
+                  onClick={closeAdvanceDialog}
+                  className="mt-6 rounded-xl bg-saffron-500 px-8 py-3 text-sm font-semibold text-white hover:bg-saffron-600 transition-colors"
+                >
+                  {t('done')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* NFC Assignment Modal */}
+      {assigningWorker && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+          onClick={closeAssignDialog}
+        >
+          <div
+            className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900">
+                {t('assignNfcCard')}
+              </h2>
+              <button
+                onClick={closeAssignDialog}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-gray-50 px-4 py-3 mb-5">
+              <p className="text-sm text-gray-500">{t('workers')}</p>
+              <p className="text-base font-bold text-gray-900">{assigningWorker.name}</p>
+              <p className="text-sm text-gray-600">{assigningWorker.role}</p>
+              {assigningWorker.nfc_tag_uid && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Current card: <span className="font-mono">{assigningWorker.nfc_tag_uid}</span>
+                </p>
+              )}
+            </div>
+
+            {assignState === 'scanning' && (
+              <div className="flex flex-col items-center py-6">
+                <Loader2 className="h-10 w-10 text-navy-600 animate-spin mb-3" />
+                <p className="text-sm font-medium text-gray-700">{assignMessage}</p>
+              </div>
+            )}
+
+            {assignState === 'saving' && (
+              <div className="flex flex-col items-center py-6">
+                <Loader2 className="h-10 w-10 text-navy-600 animate-spin mb-3" />
+                <p className="text-sm font-medium text-gray-700">{assignMessage}</p>
+              </div>
+            )}
+
+            {assignState === 'success' && (
+              <div className="flex flex-col items-center py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-50 mb-3">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900">{assignMessage}</p>
+                <button
+                  onClick={closeAssignDialog}
+                  className="mt-4 rounded-xl bg-saffron-500 px-6 py-3 text-sm font-semibold text-white hover:bg-saffron-600 transition-colors"
+                >
+                  {t('done')}
+                </button>
+              </div>
+            )}
+
+            {assignState === 'error' && (
+              <div className="flex flex-col items-center py-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-3">
+                  <XCircle className="h-8 w-8 text-red-500" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900 text-center">{assignMessage}</p>
+                <button
+                  onClick={() => {
+                    setAssignState('idle');
+                    setAssignMessage('');
+                  }}
+                  className="mt-4 rounded-xl border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  {t('retry')}
+                </button>
+              </div>
+            )}
+
+            {assignState === 'idle' && (
+              <div className="space-y-4">
+                {nfcAvailability === 'available' && (
+                  <PrimaryButton onClick={handleRealScanForAssign} fullWidth>
+                    <CreditCard className="h-5 w-5" />
+                    {t('scanNfcCard')}
+                  </PrimaryButton>
+                )}
+
+                {nfcAvailability !== 'available' && (
+                  <div className="flex items-start gap-3 rounded-xl bg-navy-50 border border-navy-200 px-4 py-3">
+                    <p className="text-sm text-navy-800">
+                      NFC hardware not available. Use simulate mode below to test.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowMockAssign((s) => !s)}
+                  className="w-full text-center text-sm font-semibold text-navy-600 hover:text-navy-700 py-1"
+                >
+                  {showMockAssign ? t('hideSimulate') : t('simulateScan')}
+                </button>
+
+                {showMockAssign && (
+                  <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 space-y-3">
+                    <p className="text-sm text-gray-600">Enter a tag UID or use a random one:</p>
+                    <input
+                      type="text"
+                      value={mockAssignUid}
+                      onChange={(e) => setMockAssignUid(e.target.value)}
+                      placeholder="e.g. AB12CD34 or leave blank for random"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono text-gray-900 focus:border-navy-500 focus:outline-none focus:ring-2 focus:ring-navy-500"
+                    />
+                    <PrimaryButton onClick={handleMockScanForAssign} fullWidth>
+                      {t('simulateAndAssign')}
+                    </PrimaryButton>
+                  </div>
+                )}
+
+                {assigningWorker.nfc_tag_uid && (
+                  <button
+                    onClick={() => handleRemoveNfc(assigningWorker)}
+                    className="w-full text-center text-sm font-semibold text-red-600 hover:text-red-700 py-1"
+                  >
+                    {t('remove')}
+                  </button>
+                )}
               </div>
             )}
           </div>

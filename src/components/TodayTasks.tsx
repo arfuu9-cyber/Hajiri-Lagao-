@@ -12,7 +12,7 @@ interface TodayTasksProps {
   onChanged: () => void;
 }
 
-/** One-tap attendance for a thekedar's own workers. */
+/** One-tap haziri for the thekedar's own mazdoor — works without NFC. */
 export function TodayTasks({ onOpenList, onChanged }: TodayTasksProps) {
   const { t } = useLang();
   const teamId = useTeamId();

@@ -1,2 +1,5 @@
+[functions.advance-otp]
+verify_jwt = true
+
 [functions.auth-firebase]
 verify_jwt = false

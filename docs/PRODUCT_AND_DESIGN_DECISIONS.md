@@ -16,13 +16,14 @@ Make the thekedar's daily work faster: open the app, select the team/site, mark 
 
 ## Keep, but only after end-to-end validation
 
+- NFC cards: useful when cards are physically used on site, but always preserve manual attendance fallback.
 - QR gate pass: useful for entry verification. A QR should contain a minimum identifier or short-lived signed token, not full worker data. Test camera scanning over HTTPS and establish gatekeeper permissions.
-- Advance confirmation: use a linked worker account to confirm receipt or dispute the amount; pending/disputed entries must not reduce payroll.
+- Advance OTP: keep only with real SMS delivery, ownership checks, expiration, attempt limits, audit logs and no OTP returned by a production API.
 - Location/photo-based verification: optional and consent-based. Do not require GPS or worker photos for ordinary attendance unless the customer needs them.
 
 ## Simplify or remove from the main navigation
 
-- Keep bottom navigation to **Home, Hajiri/History, Mazdoor, Hisaab**. Move settings, language, gate pass, export and help into **More/Settings**.
+- Keep bottom navigation to **Home, Hajiri/History, Mazdoor, Hisaab**. Move settings, language, NFC setup, gate pass, export and help into **More/Settings**.
 - Avoid a dashboard with six equally prominent colourful actions. One primary CTA should be **Aaj ki hajiri lagao**, with Add Worker, Kharchi and Hisaab as secondary actions.
 - Do not show the same attendance action in multiple cards/menus. Keep a single consistent route.
 - Remove decorative animations that slow down a work task; keep short transitions only. Reduced-motion preference is respected by the updated global CSS.
@@ -56,7 +57,7 @@ Make the thekedar's daily work faster: open the app, select the team/site, mark 
 - Run full typecheck/build and smoke-test the real Supabase project.
 - Verify RLS with independent accounts and role-specific data access.
 - Add an immutable audit record for attendance/payroll edits and explicit correction reasons.
-- Require an authenticated worker account to confirm or dispute advances; keep unconfirmed/disputed amounts out of payroll deductions.
+- Connect and test a real SMS provider before enabling OTP in production.
 - Use a configurable overtime rate and make payroll calculations auditable.
 - Fix the gatekeeper ↔ thekedar ↔ site access model and test all scenarios.
 

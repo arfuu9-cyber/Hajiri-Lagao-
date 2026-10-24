@@ -7,7 +7,6 @@ export interface KhataEntry {
   amount: number;
   note?: string | null;
   pending?: boolean;
-  disputed?: boolean;
 }
 
 export interface Khata {
@@ -43,7 +42,7 @@ export async function fetchKhata(workerId: string): Promise<Khata> {
     entries.push({ id: `a${r.id}`, kind: 'haziri', date: String(r.date), amount: d * wage, note: d === 1 ? 'Poora din' : `${d} din` });
   });
   (adv.data ?? []).forEach((a: any) =>
-    entries.push({ id: `k${a.id}`, kind: 'kharchi', date: String(a.date), amount: Number(a.amount), note: a.note, pending: a.status === 'pending', disputed: a.status === 'disputed' })
+    entries.push({ id: `k${a.id}`, kind: 'kharchi', date: String(a.date), amount: Number(a.amount), note: a.note, pending: a.status !== 'verified' })
   );
   // payments table may not exist yet -> treat as no payments
   (pay.error ? [] : pay.data ?? []).forEach((p: any) =>
@@ -53,7 +52,7 @@ export async function fetchKhata(workerId: string): Promise<Khata> {
   entries.sort((a, b) => b.date.localeCompare(a.date));
   const sum = (kind: KhataEntry['kind']) => entries.filter((e) => e.kind === kind).reduce((s, e) => s + e.amount, 0);
   const earned = sum('haziri');
-  const advances = entries.filter((entry) => entry.kind === 'kharchi' && !entry.pending && !entry.disputed).reduce((total, entry) => total + entry.amount, 0);
+  const advances = sum('kharchi');
   const paid = sum('bhugtaan');
   return { worker: w.data as Khata['worker'], days, earned, advances, paid, balance: earned - advances - paid, entries };
 }
