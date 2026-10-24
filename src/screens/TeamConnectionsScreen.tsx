@@ -16,12 +16,13 @@ import {
 import type { Worker } from '@/types/database';
 import QRCode from '@/utils/qrcode-vendor';
 import QRErrorCorrectLevel from '@/utils/qrcode-vendor/QRErrorCorrectLevel';
+import { errText } from '@/utils/errors';
 
 interface TeamConnectionsScreenProps {
   onBack: () => void;
 }
 
-const prettyError = (error: unknown) => error instanceof Error ? error.message : 'Kuch problem hui. Dobara try karein.';
+const prettyError = (error: unknown) => errText(error) || 'Kuch problem hui. Dobara try karein.';
 const phoneDigits = (phone: string | null | undefined) => {
   const digits = (phone ?? '').replace(/\D/g, '');
   return digits.length >= 10 ? digits.slice(-10) : digits;

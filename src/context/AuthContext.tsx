@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/services/supabase';
 import type { UserProfile, Worker } from '@/types/database';
+import { errText } from '@/utils/errors';
 
 interface AuthContextValue {
   session: Session | null;
@@ -11,28 +12,52 @@ interface AuthContextValue {
   reloadMyWorker: () => Promise<void>;
   reloadProfile: () => Promise<void>;
   loading: boolean;
+  profileLoadError: string | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function chooseWorkerRow(rows: Worker[], role?: UserProfile['role'] | null): Worker | null {
+  if (rows.length === 0) return null;
+  const rowRole = (worker: Worker) => (worker.role ?? '').trim().toLowerCase();
+  if (role === 'thekedar') {
+    return rows.find((worker) => rowRole(worker) === 'thekedar' && !worker.thekedar_id)
+      ?? rows.find((worker) => rowRole(worker) === 'thekedar')
+      ?? rows.find((worker) => !worker.thekedar_id)
+      ?? rows[0];
+  }
+  if (role === 'gatekeeper') {
+    return rows.find((worker) => rowRole(worker) === 'gatekeeper' && !worker.thekedar_id)
+      ?? rows.find((worker) => rowRole(worker) === 'gatekeeper')
+      ?? rows.find((worker) => !worker.thekedar_id)
+      ?? rows[0];
+  }
+  if (role === 'labour') {
+    return rows.find((worker) => Boolean(worker.thekedar_id) && !['thekedar', 'gatekeeper'].includes(rowRole(worker)))
+      ?? rows.find((worker) => !['thekedar', 'gatekeeper'].includes(rowRole(worker)))
+      ?? rows[0];
+  }
+  return rows[0];
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [myWorker, setMyWorker] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
 
-  const loadMyWorker = async (userId: string) => {
-    const { data } = await supabase
+  const loadMyWorker = async (userId: string, role?: UserProfile['role'] | null) => {
+    const { data, error } = await supabase
       .from('workers')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
+    if (error) throw error;
     const rows = (data ?? []) as Worker[];
-    // Prefer the row that is connected to a thekedar, not an old unassigned profile row.
-    const selected = rows.find((worker) => Boolean(worker.thekedar_id)) ?? rows[0] ?? null;
-    setMyWorker(selected);
+    setMyWorker(chooseWorkerRow(rows, role));
   };
 
   const fetchProfile = async (userId: string) => {
@@ -42,12 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && data) {
-      setProfile(data as UserProfile);
-    } else {
+    if (error) {
       setProfile(null);
+      setProfileLoadError(`Profile load nahi ho saka: ${error.message}`);
+    } else {
+      setProfileLoadError(null);
+      setProfile((data as UserProfile | null) ?? null);
     }
-    await loadMyWorker(userId);
+    await loadMyWorker(userId, (data as UserProfile | null)?.role ?? null);
   };
 
   useEffect(() => {
@@ -66,9 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }),
       initialLoadTimeout,
     ])
-      .catch(() => {
-        // Never leave the whole app on an infinite loading screen. Supabase auth
-        // listener below can still restore the session/profile if the request recovers.
+      .catch((err: unknown) => {
+        // Never route a session/profile query failure into registration, which could
+        // make an existing account look like a new user. Show a retry screen instead.
+        const message = errText(err) || 'Login profile load nahi ho saka.';
+        setProfileLoadError(message);
       })
       .finally(() => {
         if (initialLoadTimer !== undefined) window.clearTimeout(initialLoadTimer);
@@ -86,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!nextSession?.user) {
         setProfile(null);
+        setProfileLoadError(null);
         setMyWorker(null);
         setLoading(false);
         return;
@@ -101,8 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         });
         Promise.race([fetchProfile(nextSession.user.id), timeout])
-          .catch(() => {
-            // Registration has its own visible retry/error path; auth UI must not spin forever.
+          .catch((err: unknown) => {
+            const message = errText(err) || 'Profile load nahi ho saka.';
+            setProfileLoadError(message);
           })
           .finally(() => {
             if (profileTimer !== undefined) window.clearTimeout(profileTimer);
@@ -132,27 +163,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const reloadMyWorker = useCallback(async () => {
     const userId = session?.user?.id;
     if (!userId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('workers')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    const rows = (data ?? []) as Worker[];
-    setMyWorker(rows.find((worker) => Boolean(worker.thekedar_id)) ?? rows[0] ?? null);
-  }, [session?.user?.id]);
+    if (error) throw error;
+    setMyWorker(chooseWorkerRow((data ?? []) as Worker[], profile?.role ?? null));
+  }, [session?.user?.id, profile?.role]);
 
   const reloadProfile = async () => {
     const userId = session?.user?.id;
     if (!userId) throw new Error('Login session nahi mili. Dobara sign in karein.');
 
+    setProfileLoadError(null);
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    if (profileError) throw new Error(`Profile refresh failed: ${profileError.message}`);
-    if (!profileData) throw new Error('Saved profile database se nahi mili. Supabase project URL aur SQL setup verify karein.');
+    if (profileError) {
+      setProfileLoadError(`Profile refresh failed: ${profileError.message}`);
+      throw new Error(`Profile refresh failed: ${profileError.message}`);
+    }
+    if (!profileData) {
+      setProfileLoadError(null);
+      setProfile(null);
+      throw new Error('Saved profile database se nahi mili. Naya profile setup dikhaya jayega.');
+    }
 
     const { data: workerRows, error: workerError } = await supabase
       .from('workers')
@@ -160,14 +199,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (workerError) throw new Error(`Team profile refresh failed: ${workerError.message}`);
+    if (workerError) {
+      setProfileLoadError(`Team profile refresh failed: ${workerError.message}`);
+      throw new Error(`Team profile refresh failed: ${workerError.message}`);
+    }
     const rows = (workerRows ?? []) as Worker[];
-    const selectedWorker = rows.find((worker) => Boolean(worker.thekedar_id)) ?? rows[0] ?? null;
+    const selectedWorker = chooseWorkerRow(rows, (profileData as UserProfile).role);
 
     if ((profileData.role === 'thekedar' || profileData.role === 'gatekeeper') && !selectedWorker) {
-      throw new Error('Account profile save hua, lekin Thekedar/Gatekeeper worker record nahi mila. Registration dobara submit karein; retry safe hai.');
+      const message = 'Account profile mil gaya, lekin Thekedar/Gatekeeper worker record nahi mila. Support/DB setup check karein; dobara account register na karein.';
+      setProfileLoadError(message);
+      throw new Error(message);
     }
 
+    setProfileLoadError(null);
     setProfile(profileData as UserProfile);
     setMyWorker(selectedWorker);
   };
@@ -175,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setProfileLoadError(null);
     setMyWorker(null);
   };
 
@@ -188,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         reloadMyWorker,
         reloadProfile,
         loading,
+        profileLoadError,
         signInWithGoogle,
         signOut,
       }}

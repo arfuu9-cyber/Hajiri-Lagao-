@@ -8,6 +8,7 @@ import { createWorker } from '@/services/workerService';
 import { registerLabourWithInviteCode } from '@/services/teamConnectionService';
 import { registerAccountWithRole } from '@/services/registrationService';
 import type { UserRole } from '@/types/database';
+import { errText } from '@/utils/errors';
 
 interface RegistrationScreenProps {
   onBack: () => void;
@@ -118,7 +119,7 @@ export function RegistrationScreen({ onBack, onSaved, existingProfile = false }:
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('couldNotSave'));
+      setError(errText(err) || t('couldNotSave'));
     } finally {
       // Always unlock the submit button after validation, success, server errors or timeout.
       setLoading(false);

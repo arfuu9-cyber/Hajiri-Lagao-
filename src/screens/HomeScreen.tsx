@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-  HardHat, Nfc, UserPlus, UserCheck, UserX, WalletCards, Bell,
+  HardHat, UserPlus, UserCheck, UserX, WalletCards, Bell, Settings,
   TrendingUp, IndianRupee, HandCoins, QrCode, CreditCard,
   ScanLine, Users, ChevronDown, ChevronUp, Calendar, Eye, CheckCircle2, Clock, ChevronRight,
 } from 'lucide-react';
@@ -12,13 +12,14 @@ import { errText } from '@/utils/errors';
 import { TodayTasks } from '@/components/TodayTasks';
 import { PendingAttendanceApprovals } from '@/components/PendingAttendanceApprovals';
 import { AdvanceRequests } from '@/components/AdvanceRequests';
+import { PendingAdvanceConfirmations } from '@/components/PendingAdvanceConfirmations';
 import { createAttendance, AttendanceDuplicateError } from '@/services/attendanceService';
 import { getKolkataDateString } from '@/utils/date';
 import { fetchDashboardData, fetchLabourDashboardData, type DashboardData, type LabourDashboardData } from '@/services/payrollService';
 import type { UserRole } from '@/types/database';
 
 interface HomeScreenProps {
-  onNavigate: (screen: 'nfcAttendance' | 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections') => void;
+  onNavigate: (screen: 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'settings' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections') => void;
   role: UserRole;
 }
 
@@ -37,7 +38,6 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [showAddLaborMenu, setShowAddLaborMenu] = useState(false);
   const [errorDetail, setErrorDetail] = useState('');
 
   const loadStats = useCallback(async () => {
@@ -54,7 +54,8 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
           setLabourStats(null);
         }
       } else {
-        const data = await fetchDashboardData();
+        const dashboardTeamId = role === 'thekedar' ? myWorker?.id : myWorker?.thekedar_id ?? undefined;
+        const data = await fetchDashboardData(dashboardTeamId);
         setStats(data);
       }
     } catch (err) {
@@ -111,29 +112,40 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
   const roleLabel = profile ? t(`role_${profile.role}`) : '';
 
   return (
-    <div className="min-h-screen bg-concrete-50">
-      <main className="mx-auto max-w-2xl space-y-6 px-5 py-5">
-        <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-navy-500 to-navy-800 px-6 py-6 text-white shadow-xl shadow-navy-600/20">
-          <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full border-[18px] border-saffron-500/25" />
+    <div className="min-h-full bg-concrete-50">
+      <main className="mx-auto w-full max-w-2xl space-y-4 px-4 py-4 sm:space-y-5 sm:px-5 sm:py-5">
+        <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-emerald-800 via-emerald-900 to-slate-900 px-5 py-5 text-white shadow-lg shadow-emerald-950/15 sm:px-6 sm:py-6">
+          <div className="pointer-events-none absolute -right-10 -bottom-14 h-36 w-36 rounded-full border-[20px] border-amber-400/15" />
           <div className="relative">
-            <p className="text-sm font-medium text-navy-100">{todayLabel}</p>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight">
-              {t('namaste')}{firstName ? `, ${firstName}` : ''}
-            </h1>
-            <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">
-              <HardHat className="h-3.5 w-3.5 text-saffron-300" />
-              {roleLabel}
-            </span>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-emerald-100/85">{todayLabel}</p>
+                <h1 className="mt-1 break-words text-xl font-extrabold tracking-tight sm:text-2xl">
+                  {t('namaste')}{firstName ? `, ${firstName}` : ''}
+                </h1>
+                <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-emerald-50 ring-1 ring-white/10">
+                  <HardHat className="h-3.5 w-3.5 text-amber-300" /> {roleLabel}
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => onNavigate('alerts')} aria-label="Alerts" title="Alerts" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition active:scale-95">
+                  <Bell className="h-5 w-5" />
+                </button>
+                <button type="button" onClick={() => onNavigate('settings')} aria-label="Settings" title="Settings" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-white transition active:scale-95">
+                  <Settings className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
             {role === 'thekedar' && stats && stats.activeWorkers > 0 && (
-              <div className="mt-5">
-                <div className="flex items-end justify-between text-white">
-                  <span className="text-sm font-medium text-navy-100">{t('tasksTitle')}</span>
-                  <span className="text-lg font-extrabold">{stats.presentToday}/{Math.max(0, stats.activeWorkers - stats.onLeaveToday)}</span>
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3">
+                <div className="flex items-end justify-between gap-3 text-white">
+                  <span className="text-xs font-semibold text-emerald-100">{t('tasksTitle')}</span>
+                  <span className="text-lg font-extrabold tabular-nums">{stats.presentToday}/{Math.max(0, stats.activeWorkers - stats.onLeaveToday)}</span>
                 </div>
-                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/20">
-                  <div className="h-full rounded-full bg-saffron-400 transition-all" style={{ width: `${Math.min(100, stats.attendanceRate)}%` }} />
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
+                  <div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${Math.min(100, stats.attendanceRate)}%` }} />
                 </div>
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-white/90">
+                <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-white/85">
                   <span>{stats.presentToday} {t('presentToday')}</span>
                   <span>{stats.onLeaveToday} {t('onLeaveToday')}</span>
                   <span>{stats.absentToday} {t('attendancePending')}</span>
@@ -149,6 +161,21 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
             <ChevronRight className="h-5 w-5 shrink-0 text-emerald-700" />
           </button>
         )}
+        {role === 'thekedar' && (
+          <section aria-label="Zaroori actions" className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-extrabold text-slate-900">Zaroori kaam</h2>
+              <span className="text-[11px] font-semibold text-slate-400">Ek tap mein</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <QuickTile icon={UserPlus} color="bg-emerald-700" label="Mazdoor jodo" onClick={() => onNavigate('addWorker')} />
+              <QuickTile icon={QrCode} color="bg-teal-700" label="Team & Invite" onClick={() => onNavigate('teamConnections')} />
+              <QuickTile icon={HandCoins} color="bg-amber-500" label="Kharchi" onClick={() => onNavigate('viewWorkers')} />
+              <QuickTile icon={WalletCards} color="bg-slate-800" label={t('tileHisaab')} onClick={() => onNavigate('payroll')} />
+            </div>
+          </section>
+        )}
+
         {/* === THEKEDAR === */}
         {role === 'thekedar' && (
           <>
@@ -165,17 +192,9 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               </ol>
             </section>
             )}
-            <TodayTasks onOpenList={() => onNavigate('nfcAttendance')} onChanged={loadStats} />
+            <TodayTasks onOpenList={() => onNavigate('viewWorkers')} onChanged={loadStats} />
             <PendingAttendanceApprovals onChanged={loadStats} />
             <AdvanceRequests onChanged={loadStats} />
-            <div className="grid grid-cols-3 gap-3">
-              <QuickTile icon={QrCode} color="bg-green-600" label="Team & Invite" onClick={() => onNavigate('teamConnections')} />
-              <QuickTile icon={HandCoins} color="bg-navy-700" label={t('tileGiveAdvance')} onClick={() => onNavigate('viewWorkers')} />
-              <QuickTile icon={WalletCards} color="bg-navy-600" label={t('tileHisaab')} onClick={() => onNavigate('payroll')} />
-              <QuickTile icon={Nfc} color="bg-green-500" label={t('tileNfc')} onClick={() => onNavigate('nfcAttendance')} />
-              <QuickTile icon={CreditCard} color="bg-navy-500" label={t('tileRegister')} onClick={() => onNavigate('registration')} />
-              <QuickTile icon={Bell} color="bg-saffron-600" label={t('tileAlerts')} onClick={() => onNavigate('alerts')} />
-            </div>
             {/* Dashboard stats */}
             <section>
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('todaysOverview')}</h2>
@@ -191,9 +210,9 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-4">
-                    <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
+                    <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('viewWorkers')} accentColor="bg-green-50" />
                     <DashboardStatCard label={t('attendancePending')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
-                    <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
+                    <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('viewWorkers')} accentColor="bg-teal-50" />
                     <DashboardStatCard label={t('pendingAdvances')} value={money(stats?.pendingAdvances ?? 0)} icon={HandCoins} onClick={() => onNavigate('payroll')} accentColor="bg-rose-50" />
                   </div>
                 </>
@@ -232,10 +251,10 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 <ErrorView message={t('couldNotLoad')} onRetry={loadStats} detail={errorDetail} />
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-green-50" />
+                  <DashboardStatCard label={t('presentToday')} value={stats?.presentToday ?? 0} icon={UserCheck} onClick={() => onNavigate('viewWorkers')} accentColor="bg-green-50" />
                   <DashboardStatCard label={t('attendancePending')} value={stats?.absentToday ?? 0} icon={UserX} onClick={() => onNavigate('alerts')} accentColor="bg-coral-50" />
                   <DashboardStatCard label={t('activeWorkers')} value={stats?.activeWorkers ?? 0} icon={Users} onClick={() => onNavigate('viewWorkers')} accentColor="bg-navy-50" />
-                  <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('nfcAttendance')} accentColor="bg-teal-50" />
+                  <DashboardStatCard label={t('attendanceRate')} value={`${stats?.attendanceRate ?? 0}%`} icon={TrendingUp} onClick={() => onNavigate('viewWorkers')} accentColor="bg-teal-50" />
                 </div>
               )}
             </section>
@@ -245,12 +264,12 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
               <h2 className="text-base font-semibold text-gray-900 mb-3">{t('quickActions')}</h2>
               <div className="space-y-4">
                 <ActionButton
-                  icon={Nfc}
-                  iconBg="bg-green-500"
+                  icon={Users}
+                  iconBg="bg-green-600"
                   iconColor="text-white"
-                  title={t('markAttendance')}
-                  desc={t('markAttendanceDesc')}
-                  onClick={() => onNavigate('nfcAttendance')}
+                  title={t('workers')}
+                  desc={t('viewAllWorkers')}
+                  onClick={() => onNavigate('viewWorkers')}
                 />
               </div>
             </section>
@@ -318,6 +337,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                 {selfError && <p className="mt-2 text-sm text-red-600">{t('couldNotSave')}</p>}
               </section>
             )}
+            {myWorker?.id && <PendingAdvanceConfirmations workerId={myWorker.id} onChanged={loadStats} />}
             {/* Personal stats */}
             <div className="flex gap-2 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-navy-100">
               {(['week', 'month'] as const).map((p) => (
@@ -364,7 +384,7 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
                           {r.kind === 'attendance' ? t('updAttendance') : r.kind === 'payment' ? `${t('updPaid')} ${money(r.amount)}` : `${t('updAdvance')} ${money(r.amount)}`}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : t('updPending')}` : r.kind === 'attendance' ? ` · ${r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? `Rejected${r.note ? `: ${r.note}` : ''}` : 'Pending approval'}` : ''}
+                          {r.date}{r.kind === 'advance' ? ` · ${r.status === 'verified' ? t('updVerified') : r.status === 'disputed' ? t('updDisputed') : t('updPending')}` : r.kind === 'attendance' ? ` · ${r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? `Rejected${r.note ? `: ${r.note}` : ''}` : 'Pending approval'}` : ''}
                         </p>
                       </div>
                     </div>
@@ -392,30 +412,6 @@ export function HomeScreen({ onNavigate, role }: HomeScreenProps) {
           </>
         )}
       </main>
-      {role === 'thekedar' && (
-        <div className="fixed bottom-24 right-5 z-40 flex flex-col items-end gap-3">
-          {showAddLaborMenu && (
-            <div className="w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl" role="menu" aria-label="Add labor options">
-              <button type="button" role="menuitem" onClick={() => { setShowAddLaborMenu(false); onNavigate('addHelper'); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-emerald-50 active:bg-emerald-100">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><UserPlus className="h-5 w-5" /></span>
-                <span><span className="block text-sm font-extrabold text-slate-900">Mazdoor / Helper</span><span className="block text-xs text-slate-500">Naya helper add karein</span></span>
-              </button>
-              <button type="button" role="menuitem" onClick={() => { setShowAddLaborMenu(false); onNavigate('addKarigar'); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-emerald-50 active:bg-emerald-100">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><HardHat className="h-5 w-5" /></span>
-                <span><span className="block text-sm font-extrabold text-slate-900">Karigar / Mistri</span><span className="block text-xs text-slate-500">Skilled worker add karein</span></span>
-              </button>
-              <button type="button" role="menuitem" onClick={() => { setShowAddLaborMenu(false); onNavigate('addWorker'); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-50 active:bg-slate-100">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Users className="h-5 w-5" /></span>
-                <span><span className="block text-sm font-extrabold text-slate-900">Other / Custom role</span><span className="block text-xs text-slate-500">Apna kaam select karein</span></span>
-              </button>
-            </div>
-          )}
-          <button type="button" aria-expanded={showAddLaborMenu} onClick={() => setShowAddLaborMenu((open) => !open)} className="flex min-h-14 items-center gap-3 rounded-full bg-[#0759B5] px-5 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-blue-900/25 transition active:scale-95">
-            {showAddLaborMenu ? <ChevronDown className="h-5 w-5 rotate-180" /> : <UserPlus className="h-5 w-5" />}
-            {showAddLaborMenu ? 'Close' : 'Add Labor'}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -456,12 +452,12 @@ function QuickTile({ icon: Icon, color, label, onClick }: { icon: typeof UserPlu
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-3xl bg-white px-2 py-4 shadow-sm ring-1 ring-navy-100 transition active:scale-95"
+      className="flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-2xl border border-emerald-50 bg-white px-3 py-3 shadow-sm shadow-slate-900/[0.03] transition active:scale-[0.98] active:bg-emerald-50"
     >
-      <span className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-md ${color}`}>
+      <span className={`flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm ${color}`}>
         <Icon className="h-5 w-5" />
       </span>
-      <span className="text-center text-xs font-bold text-gray-800">{label}</span>
+      <span className="text-center text-xs font-extrabold text-slate-700">{label}</span>
     </button>
   );
 }

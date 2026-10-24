@@ -8,6 +8,7 @@ import {
 } from '@/services/attendanceService';
 import type { DutyMultiplier } from '@/types/database';
 import { getKolkataDateString } from '@/utils/date';
+import { errText } from '@/utils/errors';
 
 interface PendingAttendanceApprovalsProps {
   onChanged?: () => void;
@@ -27,7 +28,7 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
     try {
       setRows(await fetchPendingAttendanceApprovals());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Attendance requests load nahi hui.');
+      setError(errText(err) || 'Attendance requests load nahi hui.');
     } finally {
       setLoading(false);
     }
@@ -62,7 +63,7 @@ export function PendingAttendanceApprovals({ onChanged }: PendingAttendanceAppro
       onChanged?.();
       await load(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Request update nahi hui.');
+      setError(errText(err) || 'Request update nahi hui.');
     } finally {
       setBusyId(null);
     }

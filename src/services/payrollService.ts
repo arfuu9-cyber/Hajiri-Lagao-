@@ -77,70 +77,6 @@ export async function createAdvance(input: {
   return data;
 }
 
-export interface OtpResponse {
-  success: boolean;
-  maskedPhone: string;
-  devOtp?: string;
-  error?: string;
-}
-
-export async function sendAdvanceOtp(advanceId: string): Promise<OtpResponse> {
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advance-otp`;
-  const { data: session } = await supabase.auth.getSession();
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.session?.access_token ?? ''}`,
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ action: 'send_otp', advanceId }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'OTP bhejna nahi hua' }));
-    throw new Error(err.error || 'OTP bhejna nahi hua');
-  }
-  return response.json();
-}
-
-export async function resendAdvanceOtp(advanceId: string): Promise<OtpResponse> {
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advance-otp`;
-  const { data: session } = await supabase.auth.getSession();
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.session?.access_token ?? ''}`,
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ action: 'resend_otp', advanceId }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'OTP dobara nahi bheja gaya' }));
-    throw new Error(err.error || 'OTP dobara nahi bheja gaya');
-  }
-  return response.json();
-}
-
-export async function verifyAdvanceOtp(advanceId: string, otpCode: string): Promise<{ success: boolean }> {
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advance-otp`;
-  const { data: session } = await supabase.auth.getSession();
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.session?.access_token ?? ''}`,
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ action: 'verify_otp', advanceId, otpCode }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'OTP verify nahi hua' }));
-    throw new Error(err.error || 'OTP verify nahi hua');
-  }
-  return response.json();
-}
-
 export interface WorkerDetail {
   worker: Worker;
   advances: Advance[];
@@ -150,7 +86,7 @@ export interface WorkerDetail {
 export async function fetchWorkerDetail(workerId: string): Promise<WorkerDetail> {
   const [{ data: worker, error: workerError }, { data: advances, error: advanceError }, { data: attendance, error: attendanceError }] = await Promise.all([
     supabase.from('workers').select('*').eq('id', workerId).single(),
-    supabase.from('advances').select('id, worker_id, amount, date, note, created_at, status, given_by, verified_at').eq('worker_id', workerId).order('date', { ascending: false }),
+    supabase.from('advances').select('id, worker_id, amount, date, note, created_at, status, given_by, verified_at, disputed_at, dispute_reason').eq('worker_id', workerId).order('date', { ascending: false }),
     supabase.from('attendance').select('date, status, half_day, duty_multiplier, overtime_hours, approval_status').eq('approval_status', 'approved').eq('worker_id', workerId).order('date', { ascending: false }),
   ]);
 
@@ -181,7 +117,7 @@ export interface DashboardData {
  * A zero duty multiplier is treated as planned leave, not as a present worker.
  * Workers without a saved record are shown as attendance pending (not confirmed absent).
  */
-export async function fetchDashboardData(): Promise<DashboardData> {
+export async function fetchDashboardData(teamId?: string): Promise<DashboardData> {
   const today = getKolkataDateString();
   const localMidnight = new Date(`${today}T00:00:00+05:30`).toISOString();
   const weekStartDate = new Date(`${today}T00:00:00+05:30`);
@@ -190,19 +126,27 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(weekStartDate);
 
-  const [workersResult, newWorkersResult, todayAttendanceResult, weekAttendanceResult, pendingAdvancesResult] = await Promise.all([
-    supabase.from('workers').select('id, daily_wage').eq('active', true),
-    supabase.from('workers').select('id', { count: 'exact', head: true }).eq('active', true).gte('created_at', localMidnight),
+  let workersQuery = supabase
+    .from('workers')
+    .select('id, daily_wage, role, created_at, thekedar_id')
+    .eq('active', true);
+  if (teamId) workersQuery = workersQuery.eq('thekedar_id', teamId);
+
+  const [workersResult, todayAttendanceResult, weekAttendanceResult, pendingAdvancesResult] = await Promise.all([
+    workersQuery,
     supabase.from('attendance').select('worker_id, status, half_day, duty_multiplier').eq('approval_status', 'approved').eq('date', today),
     supabase.from('attendance').select('worker_id, half_day, duty_multiplier, overtime_hours').eq('approval_status', 'approved').gte('date', weekStart).lte('date', today),
     supabase.from('advances').select('amount').eq('status', 'pending').lte('date', today),
   ]);
 
-  const failure = [workersResult, newWorkersResult, todayAttendanceResult, weekAttendanceResult, pendingAdvancesResult]
+  const failure = [workersResult, todayAttendanceResult, weekAttendanceResult, pendingAdvancesResult]
     .find((result) => result.error)?.error;
   if (failure) throw failure;
 
-  const activeWorkersList = workersResult.data ?? [];
+  // Thekedar/Gatekeeper also have rows in workers. Never count those rows as Mazdoor.
+  const activeWorkersList = (workersResult.data ?? []).filter((worker) =>
+    !['thekedar', 'gatekeeper'].includes(String(worker.role ?? '').trim().toLowerCase()),
+  );
   const activeWorkerIds = new Set(activeWorkersList.map((worker) => worker.id));
   const activeWorkers = activeWorkersList.length;
   const todayRows = (todayAttendanceResult.data ?? []).filter((row) => activeWorkerIds.has(row.worker_id));
@@ -219,7 +163,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const presentToday = Math.min(activeWorkers, presentWorkerIds.size);
   const onLeaveToday = Math.min(Math.max(0, activeWorkers - presentToday), leaveWorkerIds.size);
   const absentToday = Math.max(0, activeWorkers - presentToday - onLeaveToday);
-  const newWorkersToday = newWorkersResult.count ?? 0;
+  const newWorkersToday = activeWorkersList.filter((worker) => worker.created_at >= localMidnight).length;
 
   const workerWageMap = new Map<string, number>();
   activeWorkersList.forEach((worker) => workerWageMap.set(worker.id, Number(worker.daily_wage ?? 0)));
@@ -380,7 +324,9 @@ export async function fetchRecentAdvances(limit: number = 10): Promise<(Advance 
       created_at,
       status,
       given_by,
-      verified_at
+      verified_at,
+      disputed_at,
+      dispute_reason
     `)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -398,6 +344,8 @@ export async function fetchRecentAdvances(limit: number = 10): Promise<(Advance 
     status: row.status ?? 'pending',
     given_by: row.given_by ?? null,
     verified_at: row.verified_at ?? null,
+    disputed_at: row.disputed_at ?? null,
+    dispute_reason: row.dispute_reason ?? null,
     worker: (wmap.get(row.worker_id) ?? { name: '-', role: '' }) as any,
   }));
 }

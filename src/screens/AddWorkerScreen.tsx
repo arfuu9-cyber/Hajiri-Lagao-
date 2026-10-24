@@ -5,6 +5,7 @@ import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { validateName, validatePhone, validateRole, WORKER_ROLES } from '@/utils/validation';
 import { createWorker, uploadWorkerPhoto } from '@/services/workerService';
+import { errText } from '@/utils/errors';
 
 interface AddWorkerScreenProps {
   onBack: () => void;
@@ -110,7 +111,7 @@ export function AddWorkerScreen({ onBack, onSaved, initialRole = '' }: AddWorker
       onSaved();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : t('couldNotSave');
+        errText(err) || t('couldNotSave');
       setError(message);
     } finally {
       setLoading(false);

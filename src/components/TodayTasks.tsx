@@ -12,7 +12,7 @@ interface TodayTasksProps {
   onChanged: () => void;
 }
 
-/** One-tap haziri for the thekedar's own mazdoor — works without NFC. */
+/** One-tap attendance for a thekedar's own workers. */
 export function TodayTasks({ onOpenList, onChanged }: TodayTasksProps) {
   const { t } = useLang();
   const teamId = useTeamId();
@@ -22,7 +22,7 @@ export function TodayTasks({ onOpenList, onChanged }: TodayTasksProps) {
   const [failed, setFailed] = useState(false);
 
   const isMazdoor = useCallback(
-    (w: Worker) => w.role !== 'Thekedar' && w.role !== 'Gatekeeper' && (!teamId || w.thekedar_id === teamId),
+    (w: Worker) => !['thekedar', 'gatekeeper'].includes((w.role ?? '').trim().toLowerCase()) && (!teamId || w.thekedar_id === teamId),
     [teamId]
   );
 

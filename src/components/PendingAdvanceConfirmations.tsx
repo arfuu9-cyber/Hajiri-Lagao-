@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, CircleAlert, HandCoins, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { supabase } from '@/services/supabase';
+import { errText } from '@/utils/errors';
 
 interface PendingAdvance {
   id: string;
@@ -35,7 +36,7 @@ export function PendingAdvanceConfirmations({ workerId, onChanged }: { workerId:
       const rows = ((data ?? []) as PendingAdvance[]).filter((item) => item.worker_id === workerId);
       setItems(rows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Pending kharchi load nahi ho saki.');
+      setError(errText(err) || 'Pending kharchi load nahi ho saki.');
     } finally {
       setLoading(false);
     }
@@ -59,7 +60,7 @@ export function PendingAdvanceConfirmations({ workerId, onChanged }: { workerId:
       setDisputeId(null);
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kharchi confirm nahi ho saki. Dobara try karein.');
+      setError(errText(err) || 'Kharchi confirm nahi ho saki. Dobara try karein.');
     } finally {
       setBusyId(null);
     }
@@ -86,7 +87,7 @@ export function PendingAdvanceConfirmations({ workerId, onChanged }: { workerId:
       setDisputeReason('');
       onChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Dikkat darj nahi ho saki. Dobara try karein.');
+      setError(errText(err) || 'Dikkat darj nahi ho saki. Dobara try karein.');
     } finally {
       setBusyId(null);
     }

@@ -76,69 +76,6 @@ export async function createWorker(input: WorkerInput): Promise<Worker> {
 }
 
 /**
- * Assign or update an NFC tag UID for a worker.
- * Returns the updated worker record.
- */
-export async function assignNfcTag(workerId: string, nfcTagUid: string): Promise<Worker> {
-  const normalizedUid = nfcTagUid.trim();
-
-  // Check if this UID is already assigned to a different worker
-  const { data: existing, error: checkError } = await supabase
-    .from('workers')
-    .select('id, name')
-    .eq('nfc_tag_uid', normalizedUid)
-    .neq('id', workerId)
-    .maybeSingle();
-
-  if (checkError) throw checkError;
-
-  if (existing) {
-    throw new Error(
-      `This card is already assigned to ${existing.name}. Reassign it from that worker first.`
-    );
-  }
-
-  const { data, error } = await supabase
-    .from('workers')
-    .update({ nfc_tag_uid: normalizedUid })
-    .eq('id', workerId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-/**
- * Remove the NFC tag assignment from a worker.
- */
-export async function removeNfcTag(workerId: string): Promise<Worker> {
-  const { data, error } = await supabase
-    .from('workers')
-    .update({ nfc_tag_uid: null })
-    .eq('id', workerId)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-/**
- * Find a worker by their NFC tag UID.
- */
-export async function findWorkerByNfcUid(nfcTagUid: string): Promise<Worker | null> {
-  const { data, error } = await supabase
-    .from('workers')
-    .select('*')
-    .eq('nfc_tag_uid', nfcTagUid.trim())
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
-}
-
-/**
  * Count workers created during the current Kolkata calendar day.
  */
 export async function countNewWorkersToday(): Promise<number> {
