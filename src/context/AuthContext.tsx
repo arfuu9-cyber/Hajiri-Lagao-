@@ -11,6 +11,7 @@ interface AuthContextValue {
   reloadMyWorker: () => Promise<void>;
   reloadProfile: () => Promise<void>;
   loading: boolean;
+  profileLoadError: string | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [myWorker, setMyWorker] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
 
   const loadMyWorker = async (userId: string) => {
     const { data } = await supabase
@@ -42,10 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (!error && data) {
-      setProfile(data as UserProfile);
-    } else {
+    if (error) {
       setProfile(null);
+      setProfileLoadError(`Profile load nahi ho saka: ${error.message}`);
+    } else {
+      setProfileLoadError(null);
+      setProfile((data as UserProfile | null) ?? null);
     }
     await loadMyWorker(userId);
   };
@@ -66,9 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }),
       initialLoadTimeout,
     ])
-      .catch(() => {
-        // Never leave the whole app on an infinite loading screen. Supabase auth
-        // listener below can still restore the session/profile if the request recovers.
+      .catch((err: unknown) => {
+        // Never route a session/profile query failure into registration, which could
+        // make an existing account look like a new user. Show a retry screen instead.
+        const message = err instanceof Error ? err.message : 'Login profile load nahi ho saka.';
+        setProfileLoadError(message);
       })
       .finally(() => {
         if (initialLoadTimer !== undefined) window.clearTimeout(initialLoadTimer);
@@ -86,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!nextSession?.user) {
         setProfile(null);
+        setProfileLoadError(null);
         setMyWorker(null);
         setLoading(false);
         return;
@@ -101,8 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
         });
         Promise.race([fetchProfile(nextSession.user.id), timeout])
-          .catch(() => {
-            // Registration has its own visible retry/error path; auth UI must not spin forever.
+          .catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : 'Profile load nahi ho saka.';
+            setProfileLoadError(message);
           })
           .finally(() => {
             if (profileTimer !== undefined) window.clearTimeout(profileTimer);
@@ -145,14 +153,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userId = session?.user?.id;
     if (!userId) throw new Error('Login session nahi mili. Dobara sign in karein.');
 
+    setProfileLoadError(null);
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    if (profileError) throw new Error(`Profile refresh failed: ${profileError.message}`);
-    if (!profileData) throw new Error('Saved profile database se nahi mili. Supabase project URL aur SQL setup verify karein.');
+    if (profileError) {
+      setProfileLoadError(`Profile refresh failed: ${profileError.message}`);
+      throw new Error(`Profile refresh failed: ${profileError.message}`);
+    }
+    if (!profileData) {
+      setProfileLoadError(null);
+      setProfile(null);
+      throw new Error('Saved profile database se nahi mili. Naya profile setup dikhaya jayega.');
+    }
 
     const { data: workerRows, error: workerError } = await supabase
       .from('workers')
@@ -160,14 +176,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
-    if (workerError) throw new Error(`Team profile refresh failed: ${workerError.message}`);
+    if (workerError) {
+      setProfileLoadError(`Team profile refresh failed: ${workerError.message}`);
+      throw new Error(`Team profile refresh failed: ${workerError.message}`);
+    }
     const rows = (workerRows ?? []) as Worker[];
     const selectedWorker = rows.find((worker) => Boolean(worker.thekedar_id)) ?? rows[0] ?? null;
 
     if ((profileData.role === 'thekedar' || profileData.role === 'gatekeeper') && !selectedWorker) {
-      throw new Error('Account profile save hua, lekin Thekedar/Gatekeeper worker record nahi mila. Registration dobara submit karein; retry safe hai.');
+      const message = 'Account profile mil gaya, lekin Thekedar/Gatekeeper worker record nahi mila. Support/DB setup check karein; dobara account register na karein.';
+      setProfileLoadError(message);
+      throw new Error(message);
     }
 
+    setProfileLoadError(null);
     setProfile(profileData as UserProfile);
     setMyWorker(selectedWorker);
   };
@@ -175,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setProfileLoadError(null);
     setMyWorker(null);
   };
 
@@ -188,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         reloadMyWorker,
         reloadProfile,
         loading,
+        profileLoadError,
         signInWithGoogle,
         signOut,
       }}

@@ -1,16 +1,14 @@
-import { Phone, IndianRupee, HandCoins, Nfc, ChevronRight, MessageCircle, CheckCircle2, UserX } from 'lucide-react';
+import { Phone, IndianRupee, HandCoins, ChevronRight, MessageCircle, CheckCircle2, UserX } from 'lucide-react';
 import { useLang } from '@/context/LangContext';
 import type { Worker } from '@/types/database';
 
 interface WorkerCardProps {
   worker: Worker;
-  onAssignNfc?: (worker: Worker) => void;
-  onRemoveNfc?: (worker: Worker) => void;
   onGiveAdvance?: (worker: Worker) => void;
   onView?: (worker: Worker) => void;
 }
 
-export function WorkerCard({ worker, onAssignNfc, onRemoveNfc, onGiveAdvance, onView }: WorkerCardProps) {
+export function WorkerCard({ worker, onGiveAdvance, onView }: WorkerCardProps) {
   const { t } = useLang();
   const initial = worker.name.trim().charAt(0).toUpperCase() || '?';
   return (
@@ -36,14 +34,6 @@ export function WorkerCard({ worker, onAssignNfc, onRemoveNfc, onGiveAdvance, on
             {worker.user_id ? <CheckCircle2 className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
             {worker.user_id ? 'App linked' : 'Invite pending'}
           </span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-              worker.nfc_tag_uid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-            }`}
-          >
-            <Nfc className="h-3 w-3" />
-            {worker.nfc_tag_uid ? t('cardAssigned') : t('noCard')}
-          </span>
         </div>
       </div>
 
@@ -58,7 +48,7 @@ export function WorkerCard({ worker, onAssignNfc, onRemoveNfc, onGiveAdvance, on
         </span>
       </div>
 
-      {worker.invite_code && !worker.user_id && onAssignNfc && (
+      {worker.invite_code && !worker.user_id && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-saffron-50 px-4 py-3 ring-1 ring-saffron-200">
           <div>
             <p className="text-xs text-gray-600">{t('inviteShareTitle')}</p>
@@ -85,24 +75,8 @@ export function WorkerCard({ worker, onAssignNfc, onRemoveNfc, onGiveAdvance, on
         </button>
       )}
 
-      {(onAssignNfc || onRemoveNfc || onGiveAdvance) && (
+      {onGiveAdvance && (
         <div className="mt-4 flex gap-2">
-          {onAssignNfc && (
-            <button
-              onClick={() => onAssignNfc(worker)}
-              className="flex-1 rounded-2xl bg-navy-50 px-4 py-3 text-sm font-bold text-navy-700 transition-colors hover:bg-navy-100"
-            >
-              {worker.nfc_tag_uid ? t('replaceCard') : t('assignNfcCard')}
-            </button>
-          )}
-          {onRemoveNfc && worker.nfc_tag_uid && (
-            <button
-              onClick={() => onRemoveNfc(worker)}
-              className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-100"
-            >
-              {t('remove')}
-            </button>
-          )}
           {onGiveAdvance && (
             <button
               onClick={() => onGiveAdvance(worker)}

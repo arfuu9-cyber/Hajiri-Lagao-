@@ -12,7 +12,8 @@ Mobile-first construction workforce app for thekedar and mazdoor teams. The code
 - Replaced the hand-drawn fake QR pattern with a standards-compliant QR encoder (bundled ESM conversion of the MIT-licensed Kazuhiko Arase QRCode JavaScript implementation; see `src/utils/qrcode-vendor/LICENSE.txt`).
 - Added a camera QR detection path through the browser's `BarcodeDetector` API. Devices/browsers without it receive a clear manual-ID fallback.
 - Restricted the gatekeeper's worker lookup to fields needed to verify a pass; Aadhaar data is no longer selected/displayed in this gate-pass lookup. Aadhaar number/photo capture has also been removed from new-user registration because it is not necessary for daily attendance.
-- Hardened advance OTP edge function: checks whether the signed-in user is the worker or their thekedar, throttles repeated wrong OTP attempts, and disables test OTP exposure unless explicitly opted into for a non-production environment.
+- Removed the NFC card flow and replaced advance SMS-code verification with authenticated in-app worker confirmation or dispute. The confirmation RPC checks that the signed-in user is linked to the exact worker record.
+- Rebuilt the Google login screen with a compact mobile layout, clearer sign-in action, visible failure messages and a bounded loading state. Existing-profile lookup errors now show retry instead of incorrectly pushing an existing account into new registration.
 
 ## Setup
 
@@ -28,7 +29,7 @@ Mobile-first construction workforce app for thekedar and mazdoor teams. The code
 
 - **Build not verified in this packaging environment:** npm dependencies were not available offline and package registry installation timed out, so `npm run typecheck`, `npm run build`, and device testing still need to be run in your development environment.
 - **Supabase setup is still required:** deploy every migration in `supabase/migrations` to a test project first, verify RLS with at least two unrelated thekedar accounts plus a worker and a gatekeeper, then promote to production.
-- **OTP SMS is not wired to a real SMS provider yet.** For local-only testing, you may explicitly set the Supabase Edge Function secret `ALLOW_DEV_OTP=true` and ensure `DENO_ENV` is not `production`. Do not enable this on a live project. Before launch, integrate MSG91, Twilio or another SMS gateway in `supabase/functions/advance-otp/index.ts` and remove development OTP exposure.
+- **No SMS OTP provider is required for advances.** Workers confirm or dispute a kharchi from their own linked, signed-in account. A disputed or unconfirmed advance is not deducted from payroll.
 - **Camera QR support varies.** Built-in scanning requires a modern browser with `BarcodeDetector` support and camera permission over HTTPS; manual thekedar ID entry remains available as fallback.
 - **Gate-pass authorization needs an end-to-end role test.** The current database RLS policy for `gate_passes` is thekedar-owner oriented. Do not assume a separate gatekeeper account can create/use every pass until its access model has been explicitly tested and authorized.
 - **Offline attendance queue is not included yet.** At present, failed network calls still need a usable connection. Add an idempotent local queue and sync conflict handling in a future phase.
@@ -49,13 +50,13 @@ Mobile-first construction workforce app for thekedar and mazdoor teams. The code
 See `docs/PRODUCT_AND_DESIGN_DECISIONS.md` for which features to keep, simplify, defer or remove.
 
 
-## Verified team connection and review queues
+## Verified team connection, review queues and in-app kharchi confirmation
 
 - A new worker account is not linked by name or phone alone. The worker scans/enters their individual code from **Team & Invite**; this creates a pending request.
 - Only the thekedar assigned to that exact worker record can approve/reject the connection. A code by itself never makes the connection active.
 - Thekedar can share a standards-compliant QR or copy a six-character code for a worker. Camera scanning uses `BarcodeDetector` when supported; manual entry is the fallback.
 - A linked worker can request today's attendance. It stays pending until the linked thekedar approves it; payroll counts only approved records.
-- After attendance or kharchi is approved/rejected, the request is removed from the pending queue immediately. Kharchi review is a database transaction, avoiding duplicate advances on retry. The advance stays unverified until worker OTP confirmation.
+- After attendance or kharchi is approved/rejected, the request is removed from the pending queue immediately. Kharchi review is a database transaction, avoiding duplicate advances on retry. The advance stays pending until the worker confirms it from their linked account, or is marked disputed with a reason.
 - Queue-loading failures are shown as errors rather than an empty/zero-pending state.
 - Attendance decisions are recorded in the audit log; client-side hard deletion remains disabled by the attendance workflow migration.
 - The Workers screen keeps the floating **Add Labor** shortcut for Helper/Karigar. The **Team & Invite** screen is a separate route available from the home dashboard.
@@ -66,7 +67,8 @@ Before using these flows in production:
 
 1. Apply `supabase/migrations/20261022130000_attendance_approval_workflow.sql` if not already successfully applied. It creates `attendance.approval_status`, approval guard/RLS policies and audit logging.
 2. Apply `supabase/migrations/20261023110000_verified_connections_and_safe_request_review.sql` after the existing base/security and invite-code migrations. It installs connection request RPCs and atomic kharchi review. It also ensures `advance_requests` exists/has the needed review fields.
-3. Read `docs/TEAM_CONNECTIONS_AND_REQUEST_QUEUE.md` and carry out the multi-account test plan before deploying to the live app.
+3. Apply `supabase/migrations/20261024130000_in_app_advance_confirmation_and_disputes.sql` after the worker/connection migrations. It adds in-app kharchi confirmation/dispute and removes the NFC field and trigger reference.
+4. Read `docs/TEAM_CONNECTIONS_AND_REQUEST_QUEUE.md` and carry out the multi-account test plan before deploying to the live app.
 
 If the app continues reporting `approval_status does not exist`, verify that Vercel's `VITE_SUPABASE_URL` matches the exact Supabase project where SQL was run. Frontend code cannot add a live database column by itself.
 
@@ -82,6 +84,12 @@ If the app continues reporting `approval_status does not exist`, verify that Ver
 ## Mazdoor registration invite code
 
 Apply `supabase/migrations/20261023120000_atomic_labour_registration_with_invite.sql` only after the base/security, invite-code, attendance-approval and verified-connection migrations. Registration validates the worker-specific invite code and creates a pending request atomically; the Thekedar must approve it before account linking.
+
+## No NFC or SMS OTP dependency
+
+- NFC UI/routes/permissions and the old edge-function source have been removed from the app package. A migration removes the legacy worker-card field after updating the protection trigger. It also removes unused advance OTP code/expiry columns and the old unused authentication-code table while retaining historical verification audit rows.
+- Kharchi needs no SMS code: the linked worker confirms receipt in-app or records a dispute. Only `verified` advances count toward payroll; `pending` and `disputed` entries remain visible in the audit trail.
+- For this new flow, the worker must already be linked to the worker row (`workers.user_id = auth.uid()`). Thekedar must use Team & Invite and approve the worker connection before expecting the confirmation prompt to appear.
 
 ## Registration reliability repair (2026-10-23)
 

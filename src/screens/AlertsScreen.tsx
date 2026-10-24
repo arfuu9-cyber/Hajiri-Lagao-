@@ -126,6 +126,10 @@ export function AlertsScreen({ isActive }: { isActive: boolean }) {
                         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
                           <ShieldCheck className="h-3 w-3" /> {t('advanceStatusVerified')}
                         </span>
+                      ) : advance.status === 'disputed' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                          <ShieldAlert className="h-3 w-3" /> {t('advanceStatusDisputed')}
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
                           <ShieldAlert className="h-3 w-3" /> {t('advanceStatusPending')}
@@ -134,6 +138,7 @@ export function AlertsScreen({ isActive }: { isActive: boolean }) {
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{advance.worker.role} · {formatDateHeading(advance.date)}</p>
                     {advance.note && <p className="text-xs text-gray-400 mt-0.5">{advance.note}</p>}
+                    {advance.status === 'disputed' && advance.dispute_reason && <p className="mt-1 text-xs font-semibold text-rose-700">Mazdoor ki dikkat: {advance.dispute_reason}</p>}
                   </div>
                   <span className="text-base font-bold text-amber-700">{money(Number(advance.amount))}</span>
                 </div>

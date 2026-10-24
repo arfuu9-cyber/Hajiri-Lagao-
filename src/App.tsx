@@ -5,7 +5,6 @@ import { LangProvider } from '@/context/LangContext';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { AddWorkerScreen } from '@/screens/AddWorkerScreen';
-import { NfcAttendanceScreen } from '@/screens/NfcAttendanceScreen';
 import { HistoryScreen } from '@/screens/HistoryScreen';
 import { WorkersScreen } from '@/screens/WorkersScreen';
 import { PayrollScreen } from '@/screens/PayrollScreen';
@@ -24,7 +23,6 @@ type TabKey = 'home' | 'history' | 'workers' | 'payroll';
 type StackScreen =
   | 'tabs'
   | 'addWorker'
-  | 'nfcAttendance'
   | 'workerDetail'
   | 'alerts'
   | 'settings'
@@ -32,10 +30,10 @@ type StackScreen =
   | 'gatePassThekedar'
   | 'gatePassScanner'
   | 'teamConnections';
-type QuickAction = 'nfcAttendance' | 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections';
+type QuickAction = 'addWorker' | 'addHelper' | 'addKarigar' | 'payroll' | 'alerts' | 'registration' | 'gatePass' | 'gatePassScanner' | 'workerDetail' | 'viewWorkers' | 'teamConnections';
 
 function MainApp() {
-  const { session, profile, myWorker, loading } = useAuth();
+  const { session, profile, myWorker, loading, profileLoadError, reloadProfile, signOut } = useAuth();
   const { t } = useLang();
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -65,7 +63,25 @@ function MainApp() {
     return <LoginScreen />;
   }
 
-  // If logged in but no profile yet, force registration
+  // A failed profile lookup must never masquerade as a new account.
+  if (!profile && profileLoadError) {
+    return (
+      <main className="flex min-h-[100svh] items-center justify-center bg-[#F7F9F7] px-5 py-8">
+        <section className="w-full max-w-md rounded-3xl border border-amber-200 bg-white p-6 shadow-xl shadow-slate-900/5">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-800">
+            <span className="text-2xl" aria-hidden="true">↻</span>
+          </div>
+          <h1 className="mt-4 text-center text-xl font-black text-slate-900">Account load nahi ho saka</h1>
+          <p className="mt-2 text-center text-sm leading-6 text-slate-600">Tumhara Google login mil gaya hai, lekin saved profile load nahi hua. Naya account banane ke bajaye dobara try karo.</p>
+          <p role="alert" className="mt-4 break-words rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{profileLoadError}</p>
+          <button type="button" onClick={() => { void reloadProfile().catch(() => undefined); }} className="mt-4 min-h-12 w-full rounded-xl bg-emerald-800 px-4 py-3 font-extrabold text-white">Dobara try karein</button>
+          <button type="button" onClick={() => { void signOut(); }} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700">Logout</button>
+        </section>
+      </main>
+    );
+  }
+
+  // A confirmed missing profile starts first-time registration.
   if (!profile) {
     return <RegistrationScreen onBack={returnToTabs} onSaved={returnToTabs} />;
   }
@@ -74,10 +90,6 @@ function MainApp() {
 
   if (stackScreen === 'addWorker') {
     return <AddWorkerScreen key={initialWorkerRole || 'new-worker'} initialRole={initialWorkerRole} onBack={returnToTabs} onSaved={returnToTabs} />;
-  }
-
-  if (stackScreen === 'nfcAttendance') {
-    return <NfcAttendanceScreen onBack={returnToTabs} />;
   }
 
   if (stackScreen === 'workerDetail' && selectedWorkerId) {
@@ -109,8 +121,7 @@ function MainApp() {
   }
 
   const handleNavigate = async (action: QuickAction) => {
-    if (action === 'nfcAttendance') setStackScreen('nfcAttendance');
-    else if (action === 'addWorker') { setInitialWorkerRole(''); setStackScreen('addWorker'); }
+    if (action === 'addWorker') { setInitialWorkerRole(''); setStackScreen('addWorker'); }
     else if (action === 'addHelper') { setInitialWorkerRole('Helper'); setStackScreen('addWorker'); }
     else if (action === 'addKarigar') { setInitialWorkerRole('Mason'); setStackScreen('addWorker'); }
     else if (action === 'registration') setStackScreen('registration');
@@ -143,7 +154,7 @@ function MainApp() {
   const visibleTabs: TabKey[] = getTabsForRole(role);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {activeTab === 'home' && (
         <HomeScreen
           key={refreshKey}

@@ -298,9 +298,9 @@ function BackupPage({ t }: { t: (key: string) => string }) {
           return;
         }
         csv = [
-          'Name,Phone,Role,Daily Wage,NFC Card',
+          'Name,Phone,Role,Daily Wage,Account Linked',
           ...workers.map((w) =>
-            `"${w.name}","${w.phone}","${w.role}",${w.daily_wage ?? 0},"${w.nfc_tag_uid ?? ''}"`
+            `"${w.name}","${w.phone}","${w.role}",${w.daily_wage ?? 0},"${w.user_id ? 'Yes' : 'No'}"`
           ),
         ].join('\n');
         filename = 'workers.csv';

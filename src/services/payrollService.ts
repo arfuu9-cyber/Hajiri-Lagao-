@@ -77,70 +77,6 @@ export async function createAdvance(input: {
   return data;
 }
 
-export interface OtpResponse {
-  success: boolean;
-  maskedPhone: string;
-  devOtp?: string;
-  error?: string;
-}
-
-export async function sendAdvanceOtp(advanceId: string): Promise<OtpResponse> {
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advance-otp`;
-  const { data: session } = await supabase.auth.getSession();
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.session?.access_token ?? ''}`,
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ action: 'send_otp', advanceId }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'OTP bhejna nahi hua' }));
-    throw new Error(err.error || 'OTP bhejna nahi hua');
-  }
-  return response.json();
-}
-
-export async function resendAdvanceOtp(advanceId: string): Promise<OtpResponse> {
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advance-otp`;
-  const { data: session } = await supabase.auth.getSession();
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.session?.access_token ?? ''}`,
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ action: 'resend_otp', advanceId }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'OTP dobara nahi bheja gaya' }));
-    throw new Error(err.error || 'OTP dobara nahi bheja gaya');
-  }
-  return response.json();
-}
-
-export async function verifyAdvanceOtp(advanceId: string, otpCode: string): Promise<{ success: boolean }> {
-  const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advance-otp`;
-  const { data: session } = await supabase.auth.getSession();
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.session?.access_token ?? ''}`,
-      Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ action: 'verify_otp', advanceId, otpCode }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'OTP verify nahi hua' }));
-    throw new Error(err.error || 'OTP verify nahi hua');
-  }
-  return response.json();
-}
-
 export interface WorkerDetail {
   worker: Worker;
   advances: Advance[];
@@ -150,7 +86,7 @@ export interface WorkerDetail {
 export async function fetchWorkerDetail(workerId: string): Promise<WorkerDetail> {
   const [{ data: worker, error: workerError }, { data: advances, error: advanceError }, { data: attendance, error: attendanceError }] = await Promise.all([
     supabase.from('workers').select('*').eq('id', workerId).single(),
-    supabase.from('advances').select('id, worker_id, amount, date, note, created_at, status, given_by, verified_at').eq('worker_id', workerId).order('date', { ascending: false }),
+    supabase.from('advances').select('id, worker_id, amount, date, note, created_at, status, given_by, verified_at, disputed_at, dispute_reason').eq('worker_id', workerId).order('date', { ascending: false }),
     supabase.from('attendance').select('date, status, half_day, duty_multiplier, overtime_hours, approval_status').eq('approval_status', 'approved').eq('worker_id', workerId).order('date', { ascending: false }),
   ]);
 
@@ -380,7 +316,9 @@ export async function fetchRecentAdvances(limit: number = 10): Promise<(Advance 
       created_at,
       status,
       given_by,
-      verified_at
+      verified_at,
+      disputed_at,
+      dispute_reason
     `)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -398,6 +336,8 @@ export async function fetchRecentAdvances(limit: number = 10): Promise<(Advance 
     status: row.status ?? 'pending',
     given_by: row.given_by ?? null,
     verified_at: row.verified_at ?? null,
+    disputed_at: row.disputed_at ?? null,
+    dispute_reason: row.dispute_reason ?? null,
     worker: (wmap.get(row.worker_id) ?? { name: '-', role: '' }) as any,
   }));
 }
